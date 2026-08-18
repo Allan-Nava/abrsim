@@ -55,9 +55,16 @@ Code — when they disagree, this file wins and the other gets fixed.
 - **Align everything**: a new or changed check lands in the same commit as its
   `README.md` row, its `--help` text, its tests, the `BACKLOG.md` tick and the
   `CHANGELOG.md` line.
-- **Releases**: tagged `vX.Y.Z` with a new `CHANGELOG.md` section (Keep a
-  Changelog). **Never `git push`** — that is the maintainer's call. No
-  `Co-Authored-By` trailers.
+- **Every commit is a tagged release.** A commit lands together with its own
+  `CHANGELOG.md` section (Keep a Changelog) and an annotated tag on it:
+  `git tag -a vX.Y.Z -m "Release X.Y.Z"`. Bump `minor` for anything substantive
+  — a new check, flag, algorithm, renderer, doc or a removal — and `patch` for a
+  fix, a threshold correction or a docs pass. Do it without being asked; the
+  `[Unreleased]` heading is for work not yet committed and nothing else.
+  **Never `git push`** — branch and tags go out when the maintainer says so. No
+  `Co-Authored-By` trailers. **Exempt** (no tag, no CHANGELOG entry): commits
+  that touch only `.claude/settings.json` or a `graphify-out/` artefact, both of
+  which are local tooling state rather than the product.
 
 ## Pattern for adding a check
 
@@ -77,6 +84,28 @@ Code — when they disagree, this file wins and the other gets fixed.
 5. **`go test -race ./...`** — the size measurement fans out across goroutines.
 6. **Real streams before the tag.** Build the binary and run the smoke test.
    This is where the design gets corrected, not where it gets confirmed.
+
+## The release ritual (every commit)
+
+Run in this order; a step that fails stops the commit rather than getting a
+follow-up commit.
+
+1. `scripts/backlog.sh lint && scripts/backlog.sh check` — the `AB-n` ticked and
+   `ROADMAP.md` regenerated from `BACKLOG.md`. A stale roadmap fails CI.
+2. `gofmt -l ./cmd ./internal` (empty), `go vet ./...`, `go test -race ./...`.
+3. **Real streams**: build the binary and run the smoke test
+   (`go test -tags smoke ./internal/analyze`). This is where the design gets
+   corrected, not where it gets confirmed.
+4. The `CHANGELOG.md` section for the version about to be tagged: dated, Keep a
+   Changelog headings, every entry naming its `AB-n`, and the `Unreleased`/
+   version compare links at the foot of the file updated.
+5. Commit — a subject in the imperative naming the `AB-n` — then
+   `git tag -a vX.Y.Z -m "Release X.Y.Z"` **on that commit**.
+6. Stop. The push is the maintainer's (`git push origin main --follow-tags`).
+
+Version numbers are also milestone targets (M2 aims at `v0.2.0`, M3 at `v0.3.0`,
+M6 at `v0.5.0`): a docs-only or tooling-only release takes the next **patch** so
+it cannot consume a minor a milestone has its name on.
 
 ## Known traps / technical rules
 
@@ -181,3 +210,22 @@ marking it done, never by deleting it and reusing the number.
   [ladder-bench](https://github.com/Allan-Nava/ladder-bench) ·
   [crowdsim](https://github.com/HiWay-Media/crowdsim)
 - License: PolyForm Noncommercial 1.0.0
+
+## graphify
+
+This project has a knowledge graph at graphify-out/ with god nodes, community structure, and cross-file relationships.
+
+When the user types `/graphify`, use the installed graphify skill or instructions before doing anything else.
+
+Rules:
+- For codebase questions, first run `graphify query "<question>"` when graphify-out/graph.json exists. Use `graphify path "<A>" "<B>"` for relationships and `graphify explain "<concept>"` for focused concepts. These return a scoped subgraph, usually much smaller than GRAPH_REPORT.md or raw grep output.
+- Dirty graphify-out/ files are expected after hooks or incremental updates; dirty graph files are not a reason to skip graphify. Only skip graphify if the task is about stale or incorrect graph output, or the user explicitly says not to use it.
+- If graphify-out/wiki/index.md exists, use it for broad navigation instead of raw source browsing.
+- Read graphify-out/GRAPH_REPORT.md only for broad architecture review or when query/path/explain do not surface enough context.
+- After modifying code, run `graphify update .` to keep the graph current (AST-only, no API cost).
+
+The graph is built from the Go sources by AST alone (`graphify extract . --code-only`),
+which is why it costs nothing and reruns deterministically — and why the markdown
+in this repository is **not** in it. The rules, the traps and the backlog live in
+AGENTS.md and BACKLOG.md: read those files, do not ask the graph about them.
+`graphify-out/` is gitignored, regenerable, and never a reason to tag a release.

@@ -211,6 +211,61 @@ answer *did this change make it better*.
 - [ ] **AB-28 — Container image**: a static image for pipelines that will not
   install a binary. <!-- ab: prio=low size=S labels=delivery -->
 
+## M6 — The audience, not the session <!-- ms: target=v0.5.0 phase=later -->
+
+One run over one trace says what one viewer got, and that is an anecdote a
+ladder decision cannot rest on. Nobody encodes a rung for one viewer: the rung
+someone is about to delete is defended or condemned by the tail of the audience,
+not by its median, and the cost of keeping it is paid per viewer-hour. This
+milestone turns a run into a distribution — same determinism, same refusal to
+invent a measurement, one more axis.
+
+- [ ] **AB-36 — A population, not a viewer**: `--viewers n` runs n sessions over
+  traces drawn around a named built-in, and reports the run as a distribution.
+  The nth viewer's trace comes from the same fixed-seed integer hash the built-in
+  traces already use, so `--viewers 500` twice is the same 500 viewers on any
+  machine and any Go release — a population nobody can regenerate is a benchmark
+  nobody can argue with. Sessions are independent, so they fan out across
+  goroutines and the results are ordered by index before anything reads them:
+  the goroutine that finishes first must not decide what the output says.
+  <!-- ab: prio=high size=L labels=sim,trace,cli -->
+- [ ] **AB-37 — The p95 first, and the mean nowhere**: over a population every
+  check reports p50/p95/p99 rather than an average, and a finding carries the
+  percentile it fired at. A mean startup time of 2.1s hides the one viewer in
+  twenty who waited nine seconds and left, and that viewer is the entire reason
+  an operator is reading this. Worst first, as everywhere else: the p99 line
+  comes before the p50 one. <!-- ab: prio=high size=M labels=check,output -->
+- [ ] **AB-38 — Rung attribution**: how many seconds of the audience's playback
+  each rung actually served, per rung, from the timeline the simulator already
+  emits. A rung nothing ever selects costs encoding, storage and egress and buys
+  no viewer anything; a rung carrying 60% of playback is the one nobody should
+  touch. `ladder-gap` names a hole — this names the rungs that are pulling their
+  weight, which is the other half of the same argument.
+  <!-- ab: prio=high size=M labels=check,output -->
+- [ ] **AB-39 — What the ladder costs to ship**: bytes delivered per viewer-hour,
+  per rung, from `Result.DeliveredBitrate` and never from a declared `BANDWIDTH`
+  — the trap that once produced an `efficiency` reading of 129%. Paired with
+  AB-38 it makes dropping a rung a number in both directions: seconds of
+  rebuffer added against gigabytes of egress saved. No severity: what a gigabyte
+  is worth is a commercial judgement and abrsim does not know the contract.
+  <!-- ab: prio=med size=M labels=check,delivery -->
+- [ ] **AB-40 — The screen is part of the ladder**: a viewer on a phone cannot
+  see the difference between the 1080p rung and the 720p one, so counting them
+  in "the top rung served 40% of playback" overstates what the top rung buys.
+  A device mix caps the useful rung per population segment. The mix is an input
+  and never a guess: with none stated the report is per device class and makes no
+  single judgement, because inventing an audience is inventing a measurement.
+  <!-- ab: prio=med size=M labels=sim,cli -->
+- [ ] **AB-41 — QoE as one number, with its weights printed next to it**: the
+  linear QoE the published ABR literature scores against — rung utility, minus a
+  rebuffer penalty, minus a switch penalty — so an abrsim population is
+  comparable with a published result instead of only with itself. The weights are
+  a judgement someone is entitled to disagree with, so they live in the same
+  named threshold struct as every other one and print alongside the score. No
+  severity until AB-16 shows our numbers land where the papers' do; a score with
+  no opinion beats a grade nobody can defend.
+  <!-- ab: prio=med size=M labels=check,abr -->
+
 ## M5 — Project and release <!-- ms: target=ongoing phase=ongoing -->
 
 - [ ] **AB-29 — CI gates**: `gofmt`, `go vet`, tests with a coverage floor,

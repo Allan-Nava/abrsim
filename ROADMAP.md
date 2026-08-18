@@ -6,7 +6,7 @@
 > of truth for planned work. Regenerate it with `scripts/backlog.sh roadmap`
 > after editing the backlog — CI fails when the two disagree.
 
-**35 items · 13 shipped · 22 open · 5 milestones.**
+**41 items · 13 shipped · 28 open · 6 milestones.**
 
 ## At a glance
 
@@ -16,6 +16,7 @@
 | **M2** — Faithfulness | `v0.2.0` | **now** | `..........` 0% | 11 | 0 |
 | **M3** — Comparison and CI | `v0.3.0` | later | `..........` 0% | 4 | 0 |
 | **M4** — Integration | `v0.4.0` | later | `..........` 0% | 4 | 0 |
+| **M6** — The audience, not the session | `v0.5.0` | later | `..........` 0% | 6 | 0 |
 | **M5** — Project and release | `ongoing` | ongoing | `..........` 0% | 3 | 0 |
 
 ## Next up
@@ -93,6 +94,19 @@ Target `v0.4.0` · later · 4 open · 0 shipped · `..........` 0%
 | **AB-27** — GitHub Action | med | S | integration,delivery | open |
 | **AB-28** — Container image | low | S | delivery | open |
 
+### M6 — The audience, not the session
+
+Target `v0.5.0` · later · 6 open · 0 shipped · `..........` 0%
+
+| Item | Priority | Size | Labels | Status |
+|---|---|---|---|---|
+| **AB-36** — A population, not a viewer | high | L | sim,trace,cli | open |
+| **AB-37** — The p95 first, and the mean nowhere | high | M | check,output | open |
+| **AB-38** — Rung attribution | high | M | check,output | open |
+| **AB-39** — What the ladder costs to ship | med | M | check,delivery | open |
+| **AB-40** — The screen is part of the ladder | med | M | sim,cli | open |
+| **AB-41** — QoE as one number, with its weights printed next to it | med | M | check,abr | open |
+
 ### M5 — Project and release
 
 Target `ongoing` · ongoing · 3 open · 0 shipped · `..........` 0%
@@ -107,16 +121,16 @@ Target `ongoing` · ongoing · 3 open · 0 shipped · `..........` 0%
 
 | Label | Items | Open |
 |---|---|---|
-| `cli` | 5 | 4 |
-| `sim` | 5 | 4 |
-| `abr` | 6 | 3 |
-| `check` | 5 | 3 |
-| `delivery` | 4 | 3 |
+| `check` | 9 | 7 |
+| `cli` | 7 | 6 |
+| `sim` | 7 | 6 |
+| `output` | 6 | 5 |
+| `abr` | 7 | 4 |
+| `delivery` | 5 | 4 |
 | `integration` | 3 | 3 |
-| `output` | 4 | 3 |
 | `tests` | 3 | 2 |
+| `trace` | 4 | 2 |
 | `docs` | 1 | 1 |
 | `manifest` | 3 | 1 |
 | `project` | 1 | 1 |
 | `release` | 1 | 1 |
-| `trace` | 3 | 1 |

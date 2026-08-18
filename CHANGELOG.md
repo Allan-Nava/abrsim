@@ -7,6 +7,45 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [0.1.1] — 2026-08-19
+
+Nothing the simulator does changed. What changed is how this repository releases
+itself, what the agents working in it are told, and what the next feature
+milestone is for.
+
+### Added
+
+- **Every commit is a tagged release**, written down in `AGENTS.md` (canonical)
+  and `CLAUDE.md`: a commit lands with its own `CHANGELOG.md` section and an
+  annotated `vX.Y.Z` tag on it — `minor` for anything substantive, `patch` for a
+  fix or a docs pass — and the push stays the maintainer's. The convention, and
+  the exemption for commits that touch only local agent state, is the one
+  `devops_hiway` has run on since 2026-07-03; this repository now states it
+  rather than leaving it to be inferred from a single tag. A **release ritual**
+  section lists the gates in the order they have to pass, and records why a
+  docs-only release takes a patch: the minors are spoken for by the milestones
+  (`v0.2.0` is M2's, `v0.5.0` is M6's), so a docs pass must not eat one.
+- **M6 — The audience, not the session** (AB-36…AB-41), the next feature
+  milestone, targeting `v0.5.0`. One run over one trace is an anecdote, and a
+  rung is deleted or defended by the tail of the audience rather than its median:
+  a deterministic viewer population (AB-36), percentiles with the p95 reported
+  before the mean is reported at all (AB-37), per-rung attribution of the
+  playback each rung actually served (AB-38), the egress that ladder costs per
+  viewer-hour (AB-39), the device ceiling that decides whether the top rung buys
+  anyone anything (AB-40), and the literature's linear QoE score with its weights
+  printed beside it (AB-41). Every one of them keeps the existing rules: no
+  severity that cannot be defended on a healthy stream, no audience invented
+  where none was stated, and the same fixed-seed hash the built-in traces use so
+  `--viewers 500` is the same 500 viewers everywhere.
+- **A graphify knowledge graph** of the Go sources — 291 nodes, 824 edges, 12
+  named communities — with the query-first rules for agents in both `AGENTS.md`
+  and `CLAUDE.md`. It is built by AST alone, which is what keeps it free and
+  deterministic and also what keeps this repository's markdown out of it: the
+  rules and the backlog get read from source, and the section says so rather than
+  letting an agent trust a graph that never saw them. `graphify-out/` stays
+  gitignored and regenerable, and `.codex/` joins `.claude/settings.json` there —
+  hooks and permissions belong to a workstation, the rules belong in `AGENTS.md`.
+
 ## [0.1.0] — 2026-08-18
 
 The deterministic core: enough to answer *what does this ladder cost a viewer on
@@ -78,5 +117,6 @@ no judgement (AB-34) — both attempts at a severity fired on healthy reference
 streams, and a measurement with an honest "no opinion" is worth more than a
 severity that cries wolf.
 
-[Unreleased]: https://github.com/Allan-Nava/abrsim/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/Allan-Nava/abrsim/compare/v0.1.1...HEAD
+[0.1.1]: https://github.com/Allan-Nava/abrsim/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/Allan-Nava/abrsim/releases/tag/v0.1.0

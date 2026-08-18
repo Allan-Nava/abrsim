@@ -19,4 +19,8 @@
 
 # graphify knowledge graph: regenerable from the sources.
 graphify-out/
+
+# Agent tooling state: hooks and permissions belong to a workstation, not to the
+# project. The rules the agents follow are in AGENTS.md, which is committed.
 .claude/settings.json
+.codex/
