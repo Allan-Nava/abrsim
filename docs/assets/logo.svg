@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="512" height="512" role="img" aria-labelledby="abrsim-logo-title abrsim-logo-desc">
+  <title id="abrsim-logo-title">abrsim</title>
+  <desc id="abrsim-logo-desc">A bitrate ladder of four rungs with the third one missing, under the line the network actually carried.</desc>
+
+  <!-- The tile: the mark has to read on a light README and a dark one, so it
+       carries its own ground rather than inheriting the page's. -->
+  <rect width="64" height="64" rx="13" fill="#0b1220"/>
+
+  <!-- The ladder: the rungs the encoder shipped. -->
+  <g fill="#10b981">
+    <rect x="10"   y="44" width="9" height="10" rx="1.5"/>
+    <rect x="21.5" y="37" width="9" height="17" rx="1.5"/>
+    <rect x="44.5" y="23" width="9" height="31" rx="1.5"/>
+  </g>
+
+  <!-- The rung nobody encoded. It is the whole reason this tool exists, so it is
+       drawn as an absence rather than left out of the picture. -->
+  <rect x="33.75" y="30.75" width="7.5" height="22.5" rx="1.5"
+        fill="none" stroke="#cbd5e1" stroke-width="1.5" stroke-dasharray="3 2.5"/>
+
+  <!-- The network: what the line actually carried, above every rung the player
+       had to choose from. -->
+  <path d="M8 17 H17 L24 21 H32 L39 14 H56" fill="none" stroke="#f59e0b"
+        stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

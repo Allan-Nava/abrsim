@@ -7,6 +7,56 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [0.1.2] — 2026-08-19
+
+A page and a mark. No simulator code changed; what changed is that the tool now
+has somewhere to send someone who has not installed it.
+
+### Added
+
+- **The Pages site** (AB-30) at `docs/index.html`, served from `docs/` by
+  `.github/workflows/pages.yml` — <https://allan-nava.github.io/abrsim/>. One
+  hand-written file: no build step, no framework, and nothing fetched at view
+  time, which is the same promise the binary makes and now a gated one rather
+  than a boast. It leads on the finding the tool exists for — an inline diagram
+  of a ladder with a 4.2 Mbps hole in it, the line that carried 2.9 Mbps above
+  it, and the player pinned to 360p underneath for 116 of 240 seconds — then the
+  seven checks, the seven traces, the three algorithms, the flags, and the list
+  of what the model does *not* do, because a floor on the trouble is only honest
+  if the reader is told it is a floor.
+- **A logo** (`docs/assets/logo.svg`, with `favicon.svg` as its 32-pixel
+  reduction): a ladder of four rungs with the third one drawn as a dashed
+  absence, under an amber line for what the network actually carried. The missing
+  rung *is* the product, so it is in the mark rather than implied by it. The tile
+  is dark in both files rather than transparent, so the mark reads the same on a
+  light README and a dark one.
+- **`scripts/docs.sh`** — the gate that keeps AB-30's "both moving in the same
+  commit" from being a good intention. It reads the check, trace, algorithm and
+  flag names out of the Go sources and fails when `docs/index.html` or
+  `README.md` does not name them; fails the other way too when the page
+  documents a flag the CLI no longer has; and fails if the page grows an
+  off-origin `<script>`, a CDN stylesheet or a reference to an asset that is not
+  there. Wired into `ci.yml` and into the Pages deploy, so a docs-only push
+  cannot publish a page that names a check that no longer exists. POSIX sh and
+  awk, like `backlog.sh`.
+
+### Fixed
+
+- The 0.1.0 entry called the built-in library **six** traces. There are seven —
+  `flat-5m`, `steps-down`, `steps-up`, `mobile-4g`, `train`, `office-wifi`,
+  `dsl-evening` — as `abrsim traces` has said all along. The README's trace table
+  put `steps-down` and `steps-up` in one row and the prose counted rows.
+
+### Changed
+
+- `AGENTS.md` and `CLAUDE.md`: the alignment rule now names the Pages row
+  alongside the README row and the `--help` text, the release ritual runs
+  `scripts/docs.sh check`, and the traps gained the one this script's first run
+  produced — a CSS custom property is spelled `--accent`, so reading `--word`
+  tokens out of an HTML file reports sixteen flags the CLI never had unless the
+  `<style>` block is skipped. Watching a gate fail before trusting it is the
+  rule, and it earned its place again.
+
 ## [0.1.1] — 2026-08-19
 
 Nothing the simulator does changed. What changed is how this repository releases
@@ -117,6 +167,7 @@ no judgement (AB-34) — both attempts at a severity fired on healthy reference
 streams, and a measurement with an honest "no opinion" is worth more than a
 severity that cries wolf.
 
-[Unreleased]: https://github.com/Allan-Nava/abrsim/compare/v0.1.1...HEAD
+[Unreleased]: https://github.com/Allan-Nava/abrsim/compare/v0.1.2...HEAD
+[0.1.2]: https://github.com/Allan-Nava/abrsim/compare/v0.1.1...v0.1.2
 [0.1.1]: https://github.com/Allan-Nava/abrsim/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/Allan-Nava/abrsim/releases/tag/v0.1.0

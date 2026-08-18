@@ -6,7 +6,7 @@
 > of truth for planned work. Regenerate it with `scripts/backlog.sh roadmap`
 > after editing the backlog — CI fails when the two disagree.
 
-**41 items · 13 shipped · 28 open · 6 milestones.**
+**41 items · 14 shipped · 27 open · 6 milestones.**
 
 ## At a glance
 
@@ -17,7 +17,7 @@
 | **M3** — Comparison and CI | `v0.3.0` | later | `..........` 0% | 4 | 0 |
 | **M4** — Integration | `v0.4.0` | later | `..........` 0% | 4 | 0 |
 | **M6** — The audience, not the session | `v0.5.0` | later | `..........` 0% | 6 | 0 |
-| **M5** — Project and release | `ongoing` | ongoing | `..........` 0% | 3 | 0 |
+| **M5** — Project and release | `ongoing` | ongoing | `###.......` 33% | 2 | 1 |
 
 ## Next up
 
@@ -28,9 +28,9 @@ The open items with the highest priority in the milestones that are in flight.
 - **AB-15** — Audio shares the pipe · `high` · size `M` · sim (M2, target `v0.2.0`)
 - **AB-16** — Validation against published results · `high` · size `L` · tests,abr (M2, target `v0.2.0`)
 - **AB-29** — CI gates · `high` · size `M` · project,tests (M5, target `ongoing`)
-- **AB-30** — README and the docs page · `high` · size `M` · docs (M5, target `ongoing`)
 - **AB-32** — A rung the line can only just carry is not a rung · `high` · size `S` · check (M2, target `v0.2.0`)
 - **AB-34** — Give `efficiency` an opinion it can defend · `high` · size `M` · check (M2, target `v0.2.0`)
+- **AB-35** — The startup rule a player applies before BOLA · `high` · size `M` · abr (M2, target `v0.2.0`)
 
 ## Milestones
 
@@ -109,13 +109,13 @@ Target `v0.5.0` · later · 6 open · 0 shipped · `..........` 0%
 
 ### M5 — Project and release
 
-Target `ongoing` · ongoing · 3 open · 0 shipped · `..........` 0%
+Target `ongoing` · ongoing · 2 open · 1 shipped · `###.......` 33%
 
 | Item | Priority | Size | Labels | Status |
 |---|---|---|---|---|
 | **AB-29** — CI gates | high | M | project,tests | open |
-| **AB-30** — README and the docs page | high | M | docs | open |
 | **AB-31** — Release pipeline | med | M | release | open |
+| **AB-30** — README and the docs page | high | M | docs | shipped `0.1.2` |
 
 ## By label
 
@@ -130,7 +130,7 @@ Target `ongoing` · ongoing · 3 open · 0 shipped · `..........` 0%
 | `integration` | 3 | 3 |
 | `tests` | 3 | 2 |
 | `trace` | 4 | 2 |
-| `docs` | 1 | 1 |
 | `manifest` | 3 | 1 |
 | `project` | 1 | 1 |
 | `release` | 1 | 1 |
+| `docs` | 1 | 0 |

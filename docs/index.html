@@ -1,0 +1,417 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>abrsim — what does your ladder cost a viewer on a bad connection?</title>
+<meta name="description" content="abrsim takes a real HLS ladder and a network trace, simulates what an ABR player would do, and reports what it cost the viewer. Deterministic, offline, zero dependencies.">
+<link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+<meta property="og:title" content="abrsim">
+<meta property="og:description" content="Your ladder is fine at 100 Mbps. What does it do on a train?">
+<meta property="og:type" content="website">
+<style>
+/* One file, no requests off this origin: the page keeps the promise the tool
+   makes. Light is the default palette; dark redefines only the tokens. */
+:root {
+  --bg: #ffffff;
+  --bg-soft: #f6f8fa;
+  --bg-term: #0b1220;
+  --fg: #1c2128;
+  --fg-soft: #57606a;
+  --line: #d8dee4;
+  --accent: #0f9d75;
+  --accent-soft: #e6f7f1;
+  --amber: #b45309;
+  --term-fg: #d7dee8;
+  --term-dim: #7d8ba1;
+  --ok: #10b981;
+  --bad: #f87171;
+  --radius: 10px;
+  --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+  --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0b1220;
+    --bg-soft: #121a2b;
+    --bg-term: #060b16;
+    --fg: #e6edf3;
+    --fg-soft: #9aa7b8;
+    --line: #23304a;
+    --accent: #34d399;
+    --accent-soft: #10241f;
+    --amber: #fbbf24;
+    --term-fg: #d7dee8;
+    --term-dim: #7d8ba1;
+  }
+}
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--fg);
+  font: 16px/1.65 var(--sans);
+}
+.wrap { max-width: 860px; margin: 0 auto; padding: 0 20px; }
+a { color: var(--accent); }
+a:hover { text-decoration: none; }
+code, pre, kbd { font-family: var(--mono); }
+code { font-size: 0.92em; background: var(--bg-soft); padding: 0.1em 0.35em; border-radius: 5px; }
+pre { overflow-x: auto; }
+pre code { background: none; padding: 0; }
+
+header.top {
+  border-bottom: 1px solid var(--line);
+  position: sticky; top: 0;
+  background: var(--bg);
+  z-index: 2;
+}
+header.top .wrap { display: flex; align-items: center; gap: 14px; height: 58px; }
+header.top img { width: 28px; height: 28px; border-radius: 7px; }
+header.top .name { font-weight: 700; letter-spacing: -0.01em; }
+header.top nav { margin-left: auto; display: flex; gap: 18px; font-size: 0.9rem; }
+header.top nav a { color: var(--fg-soft); text-decoration: none; }
+header.top nav a:hover { color: var(--accent); }
+@media (max-width: 620px) { header.top nav a.hide-sm { display: none; } }
+
+.hero { padding: 56px 0 8px; text-align: center; }
+.hero img.mark { width: 88px; height: 88px; border-radius: 20px; }
+.hero h1 { font-size: 2.6rem; margin: 18px 0 6px; letter-spacing: -0.03em; }
+.hero .claim { font-size: 1.25rem; font-weight: 600; margin: 0 0 14px; }
+.hero .lede { color: var(--fg-soft); max-width: 620px; margin: 0 auto 22px; }
+.badges { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin-bottom: 22px; }
+.badge {
+  font: 600 0.76rem/1 var(--mono);
+  border: 1px solid var(--line); border-radius: 999px;
+  padding: 6px 11px; color: var(--fg-soft);
+}
+.badge.on { color: var(--accent); border-color: var(--accent); background: var(--accent-soft); }
+
+.install {
+  display: inline-flex; align-items: center; gap: 10px;
+  background: var(--bg-soft); border: 1px solid var(--line);
+  border-radius: var(--radius); padding: 12px 16px;
+  font-family: var(--mono); font-size: 0.9rem; text-align: left;
+}
+.install .prompt { color: var(--fg-soft); user-select: none; }
+
+.term {
+  background: var(--bg-term); color: var(--term-fg);
+  border-radius: var(--radius); border: 1px solid #1d2942;
+  padding: 18px 18px 20px; margin: 28px 0 10px;
+  font-size: 0.8rem; line-height: 1.7;
+}
+.term pre { margin: 0; }
+.term .cmd { color: #93c5fd; }
+.term .bad { color: var(--bad); }
+.term .ok { color: var(--ok); }
+.term .hint { color: var(--term-dim); }
+.caption { color: var(--fg-soft); font-size: 0.88rem; margin: 0 0 40px; }
+
+section { padding: 34px 0; border-top: 1px solid var(--line); }
+section h2 { font-size: 1.45rem; margin: 0 0 6px; letter-spacing: -0.02em; }
+section h2 + p.sub { color: var(--fg-soft); margin: 0 0 20px; }
+h3 { font-size: 1.05rem; margin: 26px 0 8px; }
+
+table { border-collapse: collapse; width: 100%; font-size: 0.93rem; }
+.scroll { overflow-x: auto; }
+th, td { text-align: left; padding: 9px 12px; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--fg-soft); }
+td:first-child { white-space: nowrap; }
+td code { color: var(--fg); }
+
+figure { margin: 8px 0 0; }
+figure svg { width: 100%; height: auto; display: block; }
+figcaption { color: var(--fg-soft); font-size: 0.86rem; margin-top: 10px; }
+
+ul.plain { padding-left: 20px; }
+ul.plain li { margin-bottom: 10px; }
+.cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 14px; margin-top: 16px; }
+.card { border: 1px solid var(--line); border-radius: var(--radius); padding: 14px 16px; }
+.card h4 { margin: 0 0 4px; font-size: 0.98rem; }
+.card p { margin: 0; color: var(--fg-soft); font-size: 0.88rem; }
+.note {
+  border-left: 3px solid var(--accent); background: var(--accent-soft);
+  padding: 12px 16px; border-radius: 0 var(--radius) var(--radius) 0;
+  font-size: 0.93rem;
+}
+footer { border-top: 1px solid var(--line); padding: 26px 0 60px; color: var(--fg-soft); font-size: 0.88rem; }
+footer a { color: var(--fg-soft); }
+</style>
+</head>
+<body>
+
+<header class="top">
+  <div class="wrap">
+    <img src="assets/logo.svg" alt="">
+    <span class="name">abrsim</span>
+    <nav>
+      <a href="#checks">Checks</a>
+      <a href="#traces">Traces</a>
+      <a href="#cli" class="hide-sm">CLI</a>
+      <a href="#limits" class="hide-sm">Limits</a>
+      <a href="https://github.com/Allan-Nava/abrsim">GitHub</a>
+    </nav>
+  </div>
+</header>
+
+<main class="wrap">
+
+  <div class="hero">
+    <img class="mark" src="assets/logo.svg" alt="abrsim logo: a bitrate ladder with a missing rung, under the line the network carried">
+    <h1>abrsim</h1>
+    <p class="claim">Your ladder is fine at 100&nbsp;Mbps. What does it do on a train?</p>
+    <p class="lede">
+      abrsim takes a real HLS ladder and a network trace, simulates what an ABR
+      player would do, and reports what it cost the viewer — deterministically,
+      offline, with no player and no traffic shaper.
+    </p>
+    <div class="badges">
+      <span class="badge on">zero dependencies</span>
+      <span class="badge on">deterministic</span>
+      <span class="badge">one static Go binary</span>
+      <span class="badge">exit 0 unless you ask otherwise</span>
+    </div>
+    <div class="install"><span class="prompt">$</span> go install github.com/Allan-Nava/abrsim/cmd/abrsim@latest</div>
+  </div>
+
+  <div class="term scroll">
+<pre><span class="cmd">$ abrsim run https://cdn.example/master.m3u8 --trace mobile-4g --abr bola</span>
+
+<span class="bad">🔴 BAD</span>    ladder-gap  360p..1080p      no rung between 360p and 1080p (6.2× apart): 116s of playback stuck on 360p while the line carried 2.9 Mbps
+                            <span class="hint">↳ a rung near 2.6 Mbps would have been chosen for 48% of this session; the viewer watched 116s of it at 360p instead</span>
+<span class="bad">🔴 BAD</span>    rebuffer    mobile-4g        7 stalls, 17s frozen in 240s of playback (7.3%)
+                            <span class="hint">↳ the picture is stopped for this long: it is the defect a viewer notices first and forgives least</span>
+<span class="bad">🔴 BAD</span>    switches    session          41 rung changes in 240s (10.2/min)
+                            <span class="hint">↳ visible as the picture repeatedly softening and sharpening</span>
+<span class="ok">🟢 OK</span>     coverage    mobile-4g        240s of playback, entirely within the trace
+<span class="ok">🟢 OK</span>     efficiency  session          2.5 Mbps delivered against 2.4 Mbps averaged over the session (104%)
+<span class="ok">🟢 OK</span>     sizes       session          segment sizes are declared, not measured
+<span class="ok">🟢 OK</span>     startup     session          1.1s to the first frame, starting on 360p
+
+7 checks: 4 OK, 0 WARN, 3 BAD, 0 ERROR — 60 segments, 71.0 MiB, 240s of media in 250s over `mobile-4g` with bola, mean rung 2.5 Mbps</pre>
+  </div>
+  <p class="caption">
+    Three symptoms, one cause: the ladder jumps 6.2× between 360p and 1080p, so on
+    a 3&nbsp;Mbps cell the player is either stuck well below what the line can carry
+    or reaching for a rung it cannot sustain — and it oscillates between the two.
+  </p>
+
+  <section id="gap">
+    <h2>The finding it exists for</h2>
+    <p class="sub">Not “you had stalls”, but the rung that does not exist and the seconds a viewer paid for its absence.</p>
+    <figure>
+      <svg viewBox="0 0 640 214" role="img" aria-labelledby="gap-t gap-d">
+        <title id="gap-t">A hole in a bitrate ladder</title>
+        <desc id="gap-d">The rungs at 360p and 1080p exist. The network carried about 2.9 Mbps for most of the session, but with nothing between 0.8 and 5 Mbps the player stayed on 360p for 116 of the 240 seconds.</desc>
+
+        <!-- axes: time along the bottom, bitrate up the side -->
+        <line x1="112" y1="30" x2="112" y2="182" stroke="currentColor" stroke-opacity="0.25"/>
+        <line x1="112" y1="182" x2="620" y2="182" stroke="currentColor" stroke-opacity="0.25"/>
+        <text x="112" y="202" font-size="12" fill="currentColor" fill-opacity="0.6" font-family="ui-monospace, monospace">0s</text>
+        <text x="620" y="202" font-size="12" text-anchor="end" fill="currentColor" fill-opacity="0.6" font-family="ui-monospace, monospace">240s</text>
+
+        <!-- the hole: 4.2 Mbps of ladder with nothing in it -->
+        <rect x="112" y="46" width="508" height="98" fill="#f59e0b" fill-opacity="0.10"/>
+        <text x="122" y="63" font-size="13" fill="currentColor" fill-opacity="0.75">nothing here — 4.2 Mbps of ladder with no rung in it</text>
+
+        <!-- the rungs that exist -->
+        <g stroke="#10b981" stroke-width="3">
+          <line x1="112" y1="46" x2="620" y2="46"/>
+          <line x1="112" y1="144" x2="620" y2="144"/>
+        </g>
+        <text x="104" y="50" font-size="12" text-anchor="end" fill="currentColor" font-family="ui-monospace, monospace">1080p · 5.0M</text>
+        <text x="104" y="148" font-size="12" text-anchor="end" fill="currentColor" font-family="ui-monospace, monospace">360p · 0.8M</text>
+
+        <!-- what the line actually carried -->
+        <path d="M112 90 H236 L256 108 H316 L336 84 H470 L486 92 H620" fill="none" stroke="#f59e0b" stroke-width="2.5" stroke-linejoin="round"/>
+        <text x="620" y="78" font-size="12" text-anchor="end" fill="#f59e0b" font-family="ui-monospace, monospace">the line: ~2.9M</text>
+
+        <!-- the rung that would have been chosen, had anyone encoded it -->
+        <line x1="112" y1="102" x2="620" y2="102" stroke="#94a3b8" stroke-width="2" stroke-dasharray="4 4"/>
+        <text x="122" y="126" font-size="12" fill="currentColor" fill-opacity="0.7" font-family="ui-monospace, monospace">the rung nobody encoded: ~2.6M</text>
+
+        <!-- where the player actually sat -->
+        <path d="M112 144 H620" fill="none" stroke="#38bdf8" stroke-width="3" stroke-dasharray="7 4"/>
+        <text x="122" y="166" font-size="12" fill="#38bdf8" font-family="ui-monospace, monospace">the player: 360p for 116s of the 240s</text>
+      </svg>
+      <figcaption>
+        <code>ladder-gap</code> names both ends of the hole, the seconds of playback
+        spent stuck below it, and the bitrate a rung there would have had. Its two
+        exclusions matter more than its arithmetic: a player capped by the
+        <em>network</em> is not evidence of a missing rung, and one already on the
+        top rung has run out of ladder rather than fallen into a hole.
+      </figcaption>
+    </figure>
+  </section>
+
+  <section id="why">
+    <h2>Why it exists</h2>
+    <p class="sub">The question is easy to ask and expensive to answer, so mostly it does not get asked.</p>
+    <p>
+      To find out whether a ladder holds up on a bad connection you normally put a
+      real player behind a traffic shaper and watch it. That is slow, not
+      reproducible, and you cannot put it in a pipeline — so the ladder someone
+      chose in 2019 stays where it is.
+    </p>
+    <p>
+      abrsim answers it in a second. It does not download the media: it reads the
+      manifest, works out how big each segment is, and plays the whole session
+      forward on arithmetic. Same inputs, same numbers, on every machine and every
+      Go release — which is what makes it something you can gate a pipeline on.
+    </p>
+    <div class="note">
+      It is deliberately not a conformance checker. Segment bytes are
+      <a href="https://github.com/Allan-Nava/segcheck">segcheck</a>’s job,
+      manifests and fleets are
+      <a href="https://github.com/Allan-Nava/checkfleet">checkfleet</a>’s, and how
+      a ladder was encoded is
+      <a href="https://github.com/Allan-Nava/ladder-bench">ladder-bench</a>’s.
+      abrsim only asks what a <em>player</em> does with what those tools describe.
+    </div>
+  </section>
+
+  <section id="checks">
+    <h2>Checks</h2>
+    <p class="sub">Seven, worst first. Severity is <code>OK &lt; WARN &lt; BAD &lt; ERROR</code>.</p>
+    <div class="scroll">
+    <table>
+      <thead><tr><th>Check</th><th>What it answers</th></tr></thead>
+      <tbody>
+        <tr><td><code>ladder-gap</code></td><td>Was the player stuck below a rung the line could carry, with nothing in between? Names both ends of the hole, the seconds lost, and the bitrate a rung there would have had.</td></tr>
+        <tr><td><code>rebuffer</code></td><td>How long was the picture frozen, and how many times?</td></tr>
+        <tr><td><code>startup</code></td><td>How long before the first frame, and which rung was asked for first?</td></tr>
+        <tr><td><code>switches</code></td><td>How often did the rung change per minute? Oscillation is the throughput estimate chasing noise.</td></tr>
+        <tr><td><code>efficiency</code></td><td>What was delivered against what the line offered. <strong>Reports a number, makes no judgement</strong> — both attempts at a severity fired on healthy streams.</td></tr>
+        <tr><td><code>sizes</code></td><td>Were the byte counts measured, or derived from the manifest’s declared bitrate?</td></tr>
+        <tr><td><code>coverage</code></td><td>Did the inputs cover the whole run — or did the trace run out, or the network die?</td></tr>
+      </tbody>
+    </table>
+    </div>
+    <p style="margin-top:18px">
+      <code>ERROR</code> sorts above <code>BAD</code> on purpose: a check that could
+      not run matters more than a defect you can already see. And a limit of this
+      tool is never reported as a defect in the stream.
+    </p>
+  </section>
+
+  <section id="traces">
+    <h2>Network traces</h2>
+    <p class="sub">
+      <code>--trace</code> takes a built-in name or a CSV of
+      <code>seconds,bits_per_second</code>. The built-ins are <em>generated</em>
+      from a fixed-seed hash, so they are byte-identical everywhere: a recorded
+      trace checked into a repository is a binary fixture with a
+      <code>.csv</code> extension.
+    </p>
+    <div class="scroll">
+    <table>
+      <thead><tr><th>Trace</th><th>What it is</th></tr></thead>
+      <tbody>
+        <tr><td><code>flat-5m</code></td><td>5 Mbps, unwavering. The control: any finding here is the ladder’s, not the network’s.</td></tr>
+        <tr><td><code>steps-down</code></td><td>A staircase from 10 Mbps to 300 kbps, thirty seconds a step — makes the player visit every rung it has.</td></tr>
+        <tr><td><code>steps-up</code></td><td>The staircase in reverse: how long a player takes to climb back after the network recovers.</td></tr>
+        <tr><td><code>mobile-4g</code></td><td>~3 Mbps with two collapses to 400 kbps. The everyday case, and the default.</td></tr>
+        <tr><td><code>train</code></td><td>~6 Mbps between tunnels, nothing at all inside them. The trace no adaptation can save.</td></tr>
+        <tr><td><code>office-wifi</code></td><td>20 Mbps with somebody else’s backup running.</td></tr>
+        <tr><td><code>dsl-evening</code></td><td>8 Mbps degrading to 2.2 as the neighbourhood comes home, then recovering.</td></tr>
+      </tbody>
+    </table>
+    </div>
+    <p style="margin-top:18px"><code>abrsim traces</code> prints them with their spans.</p>
+
+    <h3>Algorithms</h3>
+    <p>Run the same ladder through more than one. Where they disagree, the difference is the estimator rather than the network.</p>
+    <div class="scroll">
+    <table>
+      <thead><tr><th>--abr</th><th>What it does</th></tr></thead>
+      <tbody>
+        <tr><td><code>bola</code></td><td>Lyapunov optimisation over buffer level (Spiteri et al., INFOCOM 2016) in the parametrisation dash.js ships, including the low-buffer throughput safeguard dash.js wraps around it — without which it death-spirals on any ladder whose top rung is above the line. The default.</td></tr>
+        <tr><td><code>throughput</code></td><td>Highest rung under a smoothed estimate of measured throughput. The naive baseline, and the one that oscillates.</td></tr>
+        <tr><td><code>buffer</code></td><td>BBA-style reservoir and cushion, on buffer level alone. Immune to throughput mis-estimation, slow to climb.</td></tr>
+      </tbody>
+    </table>
+    </div>
+  </section>
+
+  <section id="cli">
+    <h2>The CLI</h2>
+    <p class="sub">Findings are output, not failure: the exit code is 0 whenever the simulation ran.</p>
+    <div class="term scroll">
+<pre><span class="cmd">abrsim run &lt;master.m3u8&gt; [flags]</span>
+
+  --trace NAME|PATH      built-in trace or a CSV (default mobile-4g)
+  --abr NAME             throughput, buffer, bola (default bola)
+  --sizes declared|measured
+                         declared derives sizes from the manifest's bitrate;
+                         measured spends one HEAD per segment for real byte counts
+  --startup-buffer DUR   media buffered before playback begins (default 2s)
+  --buffer-cap DUR       what the player holds before it stops requesting (default 30s)
+  --play DUR             stop after this much media; 0 plays it all (default 0)
+  --header 'K: V'        sent on every request; repeatable
+  --timeout DUR          per-request timeout (default 30s)
+  --json                 the full report, per-request timeline included
+  --no-color             NO_COLOR is honoured too
+  --exit-on LEVEL        exit non-zero at ok|warn|bad|error</pre>
+    </div>
+    <p style="margin-top:18px">
+      <code>--exit-on bad</code> is what turns it into a gate. <code>--json</code>
+      carries the whole per-request timeline, so a machine consumer never parses
+      prose. Credentials go in <code>--header</code> values your shell reads from
+      the environment — never into a flag that lands in shell history or a CI log.
+    </p>
+  </section>
+
+  <section id="limits">
+    <h2>What it does not model</h2>
+    <p class="sub">Every one of these makes the simulation <em>kinder</em> to the stream than reality is, so the figures are a floor on the trouble rather than a ceiling.</p>
+    <ul class="plain">
+      <li><strong>Request latency</strong> — no RTT or connection setup, so short CMAF segments look better than they are.</li>
+      <li><strong>Audio sharing the connection</strong> — video gets the whole pipe.</li>
+      <li><strong>A live edge</strong> — VOD semantics only; the buffer fills as fast as the line allows.</li>
+      <li><strong>The startup rule a real player applies before BOLA</strong> — dash.js runs a throughput rule until playback is established, so the rung the first segment is fetched at is BOLA’s rather than a shipped player’s.</li>
+      <li><strong>DASH</strong> — HLS for now.</li>
+    </ul>
+    <p>
+      And unless you pass <code>--sizes measured</code>, segment sizes are
+      <code>AVERAGE-BANDWIDTH × duration ÷ 8</code>, which is an estimate. Every
+      report says which it used, in the output rather than in the documentation: a
+      simulation reported as a measurement is the one way this tool could lie.
+    </p>
+    <p>
+      Each limit is a tracked backlog item, not an omission —
+      <a href="https://github.com/Allan-Nava/abrsim/blob/main/BACKLOG.md">BACKLOG.md</a>
+      is the single source of truth for planned work and
+      <a href="https://github.com/Allan-Nava/abrsim/blob/main/ROADMAP.md">ROADMAP.md</a>
+      is generated from it.
+    </p>
+  </section>
+
+  <section id="next">
+    <h2>Where it is going</h2>
+    <p class="sub">Milestones, in the order they matter.</p>
+    <div class="cards">
+      <div class="card"><h4>M2 — Faithfulness</h4><p>DASH input, request latency, audio on the same pipe, and validation against published ABR results.</p></div>
+      <div class="card"><h4>M3 — Comparison and CI</h4><p>Sweeps, two ladders compared, budgets as checked-in config.</p></div>
+      <div class="card"><h4>M4 — Integration</h4><p>Sizes from a segcheck report, the missing rung proposed, a GitHub Action.</p></div>
+      <div class="card"><h4>M6 — The audience</h4><p>A deterministic viewer population, the p95 before the mean, and what each rung actually served.</p></div>
+    </div>
+  </section>
+
+</main>
+
+<footer>
+  <div class="wrap">
+    <p>
+      <a href="https://github.com/Allan-Nava/abrsim">github.com/Allan-Nava/abrsim</a> ·
+      <a href="https://github.com/Allan-Nava/abrsim/blob/main/CHANGELOG.md">Changelog</a> ·
+      <a href="https://github.com/Allan-Nava/abrsim/blob/main/AGENTS.md">Operating brief</a> ·
+      <a href="https://github.com/Allan-Nava/abrsim/blob/main/LICENSE">PolyForm Noncommercial 1.0.0</a>
+    </p>
+    <p>Built by <a href="https://github.com/Allan-Nava">Allan Nava</a>. This page is one static file with no third-party requests — same promise as the binary.</p>
+  </div>
+</footer>
+
+</body>
+</html>

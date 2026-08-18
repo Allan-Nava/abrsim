@@ -43,6 +43,12 @@ jobs:
           ./scripts/backlog.sh lint
           ./scripts/backlog.sh check
 
+      # The Pages site and the README name the checks, traces, algorithms and
+      # flags the binary has. Renaming one and forgetting the page is the drift
+      # this catches; it has no network and no dependencies, like the rest.
+      - name: docs
+        run: ./scripts/docs.sh check
+
   vuln:
     runs-on: ubuntu-latest
     steps:

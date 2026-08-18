@@ -25,7 +25,7 @@ Five rules that are violated most often and cost most when they are:
   the maintainer says so. No `Co-Authored-By` trailers.
 
 The release ritual, in order: `scripts/backlog.sh lint && scripts/backlog.sh check`
-· `gofmt -l ./cmd ./internal` · `go vet ./...` · `go test -race ./...` · the smoke
+· `scripts/docs.sh check` · `gofmt -l ./cmd ./internal` · `go vet ./...` · `go test -race ./...` · the smoke
 test against real streams · tick the `AB-n` in `BACKLOG.md` and regenerate
 `ROADMAP.md` · write the `CHANGELOG.md` section · commit · `git tag -a vX.Y.Z -m
 "Release X.Y.Z"`. A commit whose `ROADMAP.md` is stale fails CI; a commit with no

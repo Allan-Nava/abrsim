@@ -1,0 +1,48 @@
+name: pages
+
+# The site is the docs/ directory, served as-is: one hand-written HTML file and
+# two SVGs, no build step and nothing fetched at view time. The only thing this
+# workflow adds is the gate — a page that disagrees with the binary does not ship.
+#
+# Requires the repository's Pages source to be set to "GitHub Actions"
+# (Settings → Pages → Build and deployment → Source).
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'docs/**'
+      - 'README.md'
+      - 'scripts/docs.sh'
+      - '.github/workflows/pages.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+
+      # Same gate as ci.yml, repeated here so a docs-only push cannot deploy a
+      # page that names a check the binary no longer has.
+      - name: docs agree with the binary
+        run: ./scripts/docs.sh check
+
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: docs
+      - id: deploy
+        uses: actions/deploy-pages@v4

@@ -53,8 +53,10 @@ Code — when they disagree, this file wins and the other gets fixed.
   test written afterwards asserts what the code does instead of what the
   simulation means.
 - **Align everything**: a new or changed check lands in the same commit as its
-  `README.md` row, its `--help` text, its tests, the `BACKLOG.md` tick and the
-  `CHANGELOG.md` line.
+  `README.md` row, its row on the Pages site (`docs/index.html`), its `--help`
+  text, its tests, the `BACKLOG.md` tick and the `CHANGELOG.md` line.
+  `scripts/docs.sh check` is the gate on the last of those three documents
+  agreeing with the binary, and it runs in CI.
 - **Every commit is a tagged release.** A commit lands together with its own
   `CHANGELOG.md` section (Keep a Changelog) and an annotated tag on it:
   `git tag -a vX.Y.Z -m "Release X.Y.Z"`. Bump `minor` for anything substantive
@@ -92,6 +94,7 @@ follow-up commit.
 
 1. `scripts/backlog.sh lint && scripts/backlog.sh check` — the `AB-n` ticked and
    `ROADMAP.md` regenerated from `BACKLOG.md`. A stale roadmap fails CI.
+   `scripts/docs.sh check` — the site and the README name what the binary has.
 2. `gofmt -l ./cmd ./internal` (empty), `go vet ./...`, `go test -race ./...`.
 3. **Real streams**: build the binary and run the smoke test
    (`go test -tags smoke ./internal/analyze`). This is where the design gets
@@ -165,6 +168,12 @@ it cannot consume a minor a milestone has its name on.
 - **A quoted comma in an attribute list is the classic HLS trap.** Splitting
   `CODECS="avc1.640028,mp4a.40.2"` on commas loses the audio codec and produces
   a key of `mp4a.40.2"` that a lenient parser then ignores in silence.
+- **A `--name` in a stylesheet is not a flag.** `docs.sh` reads `--word` tokens
+  out of the page to catch a flag documented after the CLI dropped it, and CSS
+  custom properties are spelled the same way: the first run reported sixteen
+  missing flags, all of them colours. The `<style>` block is skipped for that
+  reason. The failure was the extractor's, which is the point of watching a gate
+  fail before trusting it.
 - **A round trip against our own builders cannot catch a shared misreading.**
   Where an external authority exists, use it: the BOLA paper for the algorithm,
   a real reference stream for everything else. Three of this project's design
@@ -190,6 +199,13 @@ be hand-edited. Items carry an invisible metadata comment:
 | `stats` | one-line summary |
 | `next [n]` | the n highest-priority open items |
 
+`scripts/docs.sh`:
+
+| Command | What it does |
+|---|---|
+| `check` | the checks, traces, algorithms and flags in the source are named in `docs/index.html` and `README.md`; no flag is documented that the CLI has lost; the page stays self-contained and its assets exist (the CI gate) |
+| `names` | print what the source says exists |
+
 Milestones: **M1** the deterministic core (v0.1.0) · **M2** faithfulness
 (v0.2.0) · **M3** comparison and CI (v0.3.0) · **M4** integration (v0.4.0) ·
 **M5** project and release (ongoing). Ids are stable forever: retire an item by
@@ -197,6 +213,15 @@ marking it done, never by deleting it and reusing the number.
 
 ## Pointers
 
+- `docs/index.html` — the Pages site: one hand-written file, no build step and
+  nothing fetched at view time, served from `docs/` by
+  `.github/workflows/pages.yml` (the repository's Pages source has to be set to
+  *GitHub Actions*). Live at <https://allan-nava.github.io/abrsim/>.
+- `docs/assets/logo.svg` — the mark: a ladder of four rungs with the third one
+  missing, under the line the network carried. It carries its own dark tile
+  rather than inheriting the page's, so it reads on a light README and a dark
+  one; `favicon.svg` is the same mark with two rungs, which is all that survives
+  at 32 pixels.
 - `internal/sim/sim.go` — the playback model, with what it does *not* model
   named in the package comment rather than hidden
 - `internal/analyze/analyze.go` — every check, and every threshold in one named

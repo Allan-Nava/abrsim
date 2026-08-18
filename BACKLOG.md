@@ -271,9 +271,15 @@ invent a measurement, one more axis.
 - [ ] **AB-29 — CI gates**: `gofmt`, `go vet`, tests with a coverage floor,
   `-race`, the cross-build matrix, `govulncheck`, the zero-dependency check and
   `backlog.sh lint` + `check`. <!-- ab: prio=high size=M labels=project,tests -->
-- [ ] **AB-30 — README and the docs page**: the README table of checks and the
+- [x] **AB-30 — README and the docs page**: the README table of checks and the
   static Pages site, both moving in the same commit as any check, flag or
-  default they describe. <!-- ab: prio=high size=M labels=docs -->
+  default they describe. Shipped as `docs/index.html` — one hand-written file,
+  no build step, nothing fetched at view time — with the "both moving" half
+  turned from an intention into a gate: `scripts/docs.sh check` reads the check,
+  trace, algorithm and flag names out of the Go sources and fails when the page
+  or the README does not name them, and fails the other way too when the page
+  documents a flag the CLI has lost.
+  <!-- ab: prio=high size=M labels=docs ver=0.1.2 -->
 - [ ] **AB-31 — Release pipeline**: goreleaser, the cross-platform archives and
   the Homebrew tap, with the same ad-hoc-signing caveat segcheck hit.
   <!-- ab: prio=med size=M labels=release -->
