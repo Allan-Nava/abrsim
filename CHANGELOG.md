@@ -7,6 +7,46 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [0.1.4] — 2026-08-19
+
+CI has been red since this repository's first commit, and the cause was one line.
+
+### Fixed
+
+- **`go.mod` now names a patched toolchain: `go 1.25.13`, was `go 1.25.0`.**
+  `setup-go` with `go-version-file: go.mod` installs *exactly* the version the
+  directive names, so every CI run — and every release binary — was built against
+  the 1.25.0 standard library and carried the five advisories published since:
+  `crypto/tls` (GO-2026-6090, GO-2026-5856), `net/url` (GO-2026-6218),
+  `encoding/asn1` (GO-2026-5972) and `net/textproto` (GO-2026-5039), all reachable
+  from `manifest.get` and all fixed by 1.25.13. `govulncheck` was reporting them
+  correctly; the only failing job in CI was the one doing its job. Not a
+  formality for a tool that speaks TLS and takes credentials in `--header`.
+  Verified the way the traps file now says to: the 1.25.13 toolchain downloaded
+  locally, `govulncheck` run against it — *No vulnerabilities found* — and the full
+  `-race` suite green under it, rather than pushed and hoped for.
+- **Every action bumped to its current major**: `checkout` v4→v7, `setup-go`
+  v5→v7, `goreleaser-action` v6→v7, `configure-pages` v5→v6,
+  `upload-pages-artifact` v3→v5, `deploy-pages` v4→v5. The runner was already
+  forcing the Node 20 ones onto Node 24 and saying so on every run. Each bumped
+  action's `action.yml` was read first to confirm the inputs we pass still exist
+  (`fetch-depth`, `go-version-file`, `version`/`args`, `path`).
+- **`docs/.nojekyll` was about to start disappearing from the Pages artifact**:
+  `upload-pages-artifact` v4 and up exclude dotfiles, so the bump needed
+  `include-hidden-files: true`. Deploying through Actions never runs Jekyll, so
+  the file is inert today — it matters the day somebody switches Pages back to
+  serving the branch, which is exactly when nobody remembers it was dropped.
+
+### Known limitations
+
+`v0.1.3` published its six archives and `checksums.txt` and then failed at the
+cask step with `401 Bad credentials` — the documented failure mode, one release
+earlier than expected: `HOMEBREW_TAP_TOKEN` is not set on this repository, so
+goreleaser could not write to `Allan-Nava/homebrew-tap`. The archives are fine,
+the tap has no cask yet, and `brew install --cask allan-nava/tap/abrsim` does not
+work until the secret exists and a tag is pushed with it in place. Nothing in the
+repository can fix that from the inside.
+
 ## [0.1.3] — 2026-08-19
 
 `brew install --cask allan-nava/tap/abrsim`. Which is to say: AB-31, and the gate
@@ -233,7 +273,8 @@ no judgement (AB-34) — both attempts at a severity fired on healthy reference
 streams, and a measurement with an honest "no opinion" is worth more than a
 severity that cries wolf.
 
-[Unreleased]: https://github.com/Allan-Nava/abrsim/compare/v0.1.3...HEAD
+[Unreleased]: https://github.com/Allan-Nava/abrsim/compare/v0.1.4...HEAD
+[0.1.4]: https://github.com/Allan-Nava/abrsim/compare/v0.1.3...v0.1.4
 [0.1.3]: https://github.com/Allan-Nava/abrsim/compare/v0.1.2...v0.1.3
 [0.1.2]: https://github.com/Allan-Nava/abrsim/compare/v0.1.1...v0.1.2
 [0.1.1]: https://github.com/Allan-Nava/abrsim/compare/v0.1.0...v0.1.1

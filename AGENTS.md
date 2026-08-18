@@ -172,6 +172,17 @@ it cannot consume a minor a milestone has its name on.
 - **A quoted comma in an attribute list is the classic HLS trap.** Splitting
   `CODECS="avc1.640028,mp4a.40.2"` on commas loses the audio codec and produces
   a key of `mp4a.40.2"` that a lenient parser then ignores in silence.
+- **The `go` directive is the version CI builds and ships, not a floor.**
+  `setup-go` with `go-version-file: go.mod` installs *exactly* what the directive
+  names, so `go 1.25.0` produced binaries whose standard library carried every
+  advisory published since 1.25.0 — five of them, in `crypto/tls`, `net/url`,
+  `encoding/asn1` and `net/textproto`, all reachable from `manifest.get`, all
+  fixed by 1.25.13. `govulncheck` had therefore been red since the repository's
+  first commit, and the fix was one line. When that job goes red, bump the patch
+  in `go.mod` and check it locally with the matching toolchain
+  (`go install golang.org/dl/go1.X.Y@latest && go1.X.Y download`, then run
+  `govulncheck` with it on `PATH`) rather than pushing and hoping. It is never a
+  false positive for a tool that takes credentials in `--header` and speaks TLS.
 - **Homebrew stages the binary with `com.apple.quarantine`, and ours is only
   ad-hoc signed** — that is the Go linker on arm64, not a Developer ID signature.
   Gatekeeper then kills the first run with SIGKILL, exit 137, **and no output at

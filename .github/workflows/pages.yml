@@ -33,16 +33,22 @@ jobs:
       name: github-pages
       url: ${{ steps.deploy.outputs.page_url }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       # Same gate as ci.yml, repeated here so a docs-only push cannot deploy a
       # page that names a check the binary no longer has.
       - name: docs agree with the binary
         run: ./scripts/docs.sh check
 
-      - uses: actions/configure-pages@v5
-      - uses: actions/upload-pages-artifact@v3
+      - uses: actions/configure-pages@v6
+      - uses: actions/upload-pages-artifact@v5
         with:
           path: docs
+          # v4 of the underlying upload-artifact stopped including dotfiles, and
+          # docs/.nojekyll is one. Deploying through Actions never runs Jekyll, so
+          # the file is inert today — it matters the day somebody switches Pages
+          # back to serving the branch, which is exactly when nobody remembers it
+          # was silently dropped from the artifact.
+          include-hidden-files: true
       - id: deploy
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@v5

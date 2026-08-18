@@ -12,8 +12,8 @@ jobs:
   test:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
         with:
           go-version-file: go.mod
 
@@ -54,16 +54,22 @@ jobs:
       # exists and with the release half-published. Checked on every commit
       # instead, where the fix is free.
       - name: release config
-        uses: goreleaser/goreleaser-action@v6
+        uses: goreleaser/goreleaser-action@v7
         with:
           version: "~> v2"
           args: check
 
+  # A red job here almost always means one thing: bump the `go` directive in
+  # go.mod. setup-go installs *exactly* the version that directive names, so
+  # `go 1.25.0` builds — and ships — a standard library carrying every advisory
+  # published since 1.25.0. This is not a formality for abrsim: the binary makes
+  # HTTPS requests and takes credentials in `--header`, so a reachable crypto/tls
+  # or net/url advisory is in the product, not in a test.
   vuln:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
         with:
           go-version-file: go.mod
       - run: go install golang.org/x/vuln/cmd/govulncheck@latest
@@ -76,8 +82,8 @@ jobs:
         goos: [linux, darwin, windows]
         goarch: [amd64, arm64]
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
         with:
           go-version-file: go.mod
       - env:
