@@ -280,6 +280,40 @@ invent a measurement, one more axis.
   or the README does not name them, and fails the other way too when the page
   documents a flag the CLI has lost.
   <!-- ab: prio=high size=M labels=docs ver=0.1.2 -->
-- [ ] **AB-31 — Release pipeline**: goreleaser, the cross-platform archives and
-  the Homebrew tap, with the same ad-hoc-signing caveat segcheck hit.
-  <!-- ab: prio=med size=M labels=release -->
+- [x] **AB-31 — Release pipeline**: goreleaser, the cross-platform archives and
+  the Homebrew tap, with the same ad-hoc-signing caveat segcheck hit. Shipped as
+  `.goreleaser.yaml` (six archives, checksums, and a Homebrew **cask** — not a
+  formula, which describes something built from source) plus
+  `.github/workflows/release.yml`, whose first job is the reference-stream smoke
+  test: "real streams before the tag" was a manual step, and a manual step is the
+  one that gets skipped on the day it mattered. `goreleaser check` runs in CI on
+  every commit, because a deprecated stanza discovered on the first pushed tag is
+  discovered with the tag already public. The cask carries segcheck's quarantine
+  postflight: Homebrew stages the binary with `com.apple.quarantine`, the binary
+  is only ad-hoc signed, and Gatekeeper then kills the first run with SIGKILL and
+  no message at all — which reads as a broken build rather than an unsigned one.
+  <!-- ab: prio=med size=M labels=release ver=0.1.3 -->
+- [x] **AB-42 — An install command is a claim, so gate it**: `docs.sh` now checks
+  every install line against the thing that would ship it — `brew install` against
+  the cask in `.goreleaser.yaml` *and* against the exact `owner/tap/name`
+  coordinate goreleaser will publish, `go install` against the module path in
+  `go.mod`, `docker run` against an image the release actually builds (there is
+  none yet, so the claim is currently unmakeable, which is the point). A command
+  that fails on the reader's machine is worse than an undocumented one: they blame
+  the tool. Found while adding it: the reverse flag check read `--cask` as an
+  abrsim flag the CLI had lost, so it now ignores lines that invoke somebody
+  else's program. <!-- ab: prio=high size=S labels=docs,release ver=0.1.3 -->
+- [ ] **AB-43 — Signed archives and an SBOM**: cosign keyless over the checksum
+  file and a syft SBOM per archive, so "zero dependencies" is something a consumer
+  can verify instead of something the README asserts, and someone who did not
+  build the binary has a reason to trust it. Deliberately left out of AB-31: each
+  addition is a way for a first release to fail half-published, and the archives
+  are worth more than the signature until somebody is downloading them.
+  <!-- ab: prio=med size=S labels=release -->
+- [ ] **AB-44 — A macOS binary Gatekeeper accepts on its own merits**: the cask's
+  `xattr -dr com.apple.quarantine` postflight is a workaround for an ad-hoc
+  signature, and it only helps people who install through Homebrew — anyone who
+  downloads the archive still gets the silent SIGKILL. The fix is a Developer ID
+  signature and notarisation, which needs a paid Apple account, so this is a
+  decision to buy something rather than an afternoon's work.
+  <!-- ab: prio=low size=M labels=release,delivery -->

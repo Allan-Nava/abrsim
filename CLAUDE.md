@@ -29,7 +29,9 @@ The release ritual, in order: `scripts/backlog.sh lint && scripts/backlog.sh che
 test against real streams · tick the `AB-n` in `BACKLOG.md` and regenerate
 `ROADMAP.md` · write the `CHANGELOG.md` section · commit · `git tag -a vX.Y.Z -m
 "Release X.Y.Z"`. A commit whose `ROADMAP.md` is stale fails CI; a commit with no
-tag breaks the one promise this repository makes about its own history.
+tag breaks the one promise this repository makes about its own history. Pushing
+the tag is the maintainer's call and is what publishes the archives and the
+Homebrew cask — so a tag is cheap locally and consequential once pushed.
 
 When AGENTS.md and this file disagree, AGENTS.md wins and this file gets fixed.
 

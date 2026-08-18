@@ -95,6 +95,8 @@ header.top nav a:hover { color: var(--accent); }
   font-family: var(--mono); font-size: 0.9rem; text-align: left;
 }
 .install .prompt { color: var(--fg-soft); user-select: none; }
+.hero .alt { color: var(--fg-soft); font-size: 0.86rem; max-width: 560px; margin: 14px auto 0; }
+.hero .alt code { font-size: 0.86em; }
 
 .term {
   background: var(--bg-term); color: var(--term-fg);
@@ -173,7 +175,14 @@ footer a { color: var(--fg-soft); }
       <span class="badge">one static Go binary</span>
       <span class="badge">exit 0 unless you ask otherwise</span>
     </div>
-    <div class="install"><span class="prompt">$</span> go install github.com/Allan-Nava/abrsim/cmd/abrsim@latest</div>
+    <div class="install"><span class="prompt">$</span> brew install --cask allan-nava/tap/abrsim</div>
+    <p class="alt">
+      or <code>go install github.com/Allan-Nava/abrsim/cmd/abrsim@latest</code> on
+      any platform, or a
+      <a href="https://github.com/Allan-Nava/abrsim/releases">prebuilt archive</a>
+      for linux, darwin and windows on amd64 and arm64. The cask is macOS-only on
+      purpose: a second packaging path exists to become the one that goes stale.
+    </p>
   </div>
 
   <div class="term scroll">

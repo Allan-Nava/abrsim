@@ -4,6 +4,12 @@
 #   scripts/docs.sh check    fail when the page and the source disagree (the CI gate)
 #   scripts/docs.sh names    print what the source says exists, for eyeballing
 #
+# It also asserts that every install command is backed by something that ships:
+# `brew install` needs the cask in .goreleaser.yaml, and the coordinate in the
+# docs has to be the one goreleaser will publish; `go install` needs the module
+# path from go.mod; `docker run` needs an image the release actually builds. A
+# command a reader runs and watches fail is worse than an undocumented one.
+#
 # The page is hand-written prose, not generated: a landing page derived
 # mechanically from the README reads like neither. What is mechanical is the
 # vocabulary — the checks, the traces, the algorithms and the flags — and that is
@@ -65,6 +71,11 @@ page_flags() {
 		/<style>/  { instyle = 1 }
 		/<\/style>/ { instyle = 0; next }
 		instyle    { next }
+		# Somebody else\'"'"'s flags are not ours: `brew install --cask` and
+		# `docker run --rm` are on the page because they are how a reader installs
+		# and runs this, and reading `--cask` as a missing abrsim flag is how this
+		# check first failed after the install block landed.
+		/brew |docker |git / { next }
 		{
 			s = $0
 			while (match(s, /--[a-z][a-z-]+/)) {
@@ -132,6 +143,54 @@ check() {
 
 	grep -q "<title>" "$page" || err "the page has no <title>"
 
+	# An install command is a claim about something that ships, so it is checked
+	# against the thing that ships it rather than taken on trust. A `brew install`
+	# line with no cask behind it is the worst kind of documentation: it fails on
+	# the reader's machine, in a way they will blame on the tool.
+	module=$(awk '/^module /{ print $2 }' "$src/go.mod")
+	cask=$(awk '
+		/^homebrew_casks:/            { inside = 1; next }
+		inside && /^[a-z_]+:/         { inside = 0 }
+		inside && /^  - name:/        { print $3 }
+	' "$src/.goreleaser.yaml" 2>/dev/null || true)
+	tap=$(awk '
+		/^homebrew_casks:/     { inside = 1; next }
+		inside && /^[a-z_]+:/  { inside = 0 }
+		inside && /^      owner:/ { owner = $2 }
+		inside && /^      name:/  { name = $2 }
+		END { if (owner != "" && name != "") print tolower(owner) "/" name }
+	' "$src/.goreleaser.yaml" 2>/dev/null || true)
+
+	for doc in "$page" "$readme"; do
+		base=$(basename "$doc")
+
+		if grep -q "brew install" "$doc"; then
+			if [ -z "$cask" ]; then
+				err "$base offers \`brew install\` and .goreleaser.yaml declares no cask"
+			else
+				# Homebrew reads `owner/tap/name` as the repository
+				# `Owner/homebrew-tap`, so the coordinate in the docs is derivable
+				# from the config and must match it exactly.
+				case "$tap" in
+				*/homebrew-tap) want="${tap%/homebrew-tap}/tap/$cask" ;;
+				*)              want="" ; err "the cask publishes to \`$tap\`, which is not a Homebrew tap repository" ;;
+				esac
+				[ -z "$want" ] || grep -qF -- "$want" "$doc" ||
+					err "$base names a cask other than \`$want\`, which is the one that gets published"
+			fi
+		fi
+
+		if grep -q "go install" "$doc"; then
+			grep -qF -- "$module/cmd/abrsim@latest" "$doc" ||
+				err "$base offers a \`go install\` for something other than $module/cmd/abrsim"
+		fi
+
+		if grep -q "docker run" "$doc"; then
+			grep -q "^dockers" "$src/.goreleaser.yaml" 2>/dev/null ||
+				err "$base offers a container image that nothing in .goreleaser.yaml builds"
+		fi
+	done
+
 	# The subshells above cannot raise `bad` in this shell, so count the
 	# diagnostics instead of trusting a variable a pipeline reset.
 	return 0
@@ -146,7 +205,7 @@ check)
 		echo "docs.sh: $n problem(s) — the page and the binary disagree" >&2
 		exit 1
 	fi
-	echo "docs.sh OK — $(checks | wc -l | tr -d ' ') checks, $(traces | wc -l | tr -d ' ') traces, $(algorithms | wc -l | tr -d ' ') algorithms, $(flags | wc -l | tr -d ' ') flags named consistently in docs/index.html and README.md"
+	echo "docs.sh OK — $(checks | wc -l | tr -d ' ') checks, $(traces | wc -l | tr -d ' ') traces, $(algorithms | wc -l | tr -d ' ') algorithms, $(flags | wc -l | tr -d ' ') flags named consistently in $(basename "$page") and $(basename "$readme"); every install command backed by what actually ships"
 	;;
 names)
 	echo "checks:     $(checks | tr '\n' ' ')"

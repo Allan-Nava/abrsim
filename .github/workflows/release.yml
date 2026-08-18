@@ -1,0 +1,51 @@
+name: release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  # "Real streams before the tag" is this project's rule, and it was a manual
+  # step — exactly the kind that gets skipped on the day it would have mattered.
+  # Three of this repository's design errors were found here and none by a unit
+  # test, so a tag does not ship without it.
+  smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - name: The reference streams
+        run: |
+          go build -o /tmp/abrsim ./cmd/abrsim
+          ABRSIM_BIN=/tmp/abrsim go test -tags smoke -run TestSmokeReferenceStreams ./internal/analyze/ -v
+
+  goreleaser:
+    needs: smoke
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # goreleaser needs the tags to work out the version and the previous one.
+          fetch-depth: 0
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - uses: goreleaser/goreleaser-action@v6
+        with:
+          version: "~> v2"
+          args: release --clean
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # The cask publishes to Allan-Nava/homebrew-tap, which this workflow's
+          # GITHUB_TOKEN cannot write to: it is scoped to this repository. The PAT
+          # is fine-grained, so it expires — when it does, the release publishes
+          # its archives and then fails at the cask step. The artifacts are fine;
+          # the tap is stale, and `brew install` keeps installing the old version
+          # without saying so.
+          HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}

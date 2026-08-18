@@ -1,0 +1,108 @@
+version: 2
+
+project_name: abrsim
+
+before:
+  hooks:
+    # A no-op here by construction: `go.mod` has no require block and `go.sum` is
+    # empty, and CI fails if either stops being true. It stays because the day
+    # that changes, the release should be built from a tidied module rather than
+    # whatever the tag happened to carry.
+    - go mod tidy
+
+builds:
+  - id: abrsim
+    main: ./cmd/abrsim
+    binary: abrsim
+    env:
+      - CGO_ENABLED=0
+    flags:
+      - -trimpath
+    # `main.version` is the `var version = "dev"` in cmd/abrsim/main.go, which is
+    # what `abrsim version` prints and what goes in the User-Agent. A release
+    # binary that reports itself as `dev` is a report nobody can trace back to a
+    # commit, so the stamp is not cosmetic.
+    ldflags:
+      - -s -w -X main.version={{ .Version }}
+    goos: [linux, darwin, windows]
+    goarch: [amd64, arm64]
+
+archives:
+  - id: default
+    formats: [tar.gz]
+    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    format_overrides:
+      - goos: windows
+        formats: [zip]
+    files:
+      - README.md
+      - LICENSE*
+      - CHANGELOG.md
+
+checksum:
+  name_template: "checksums.txt"
+
+# The tap is Allan-Nava/homebrew-tap, shared with segcheck. HOMEBREW_TAP_TOKEN is
+# a fine-grained PAT scoped to that repository with Contents: read and write — the
+# workflow's own GITHUB_TOKEN is scoped to this repository and cannot write to
+# another one. Fine-grained PATs expire; when this one does, a release publishes
+# its archives and then fails here, so the artifacts are fine and the tap is stale.
+#
+# A cask, not a formula: `brews` is deprecated, and Homebrew wants a cask for a
+# prebuilt binary anyway — a formula describes something built from source. Casks
+# are macOS-only, and that is deliberate: `go install` and the archives already
+# cover Linux and Windows, and a second packaging path exists to be the one that
+# goes stale. goreleaser writes `on_linux` URLs into the cask regardless; Homebrew
+# on Linux refuses casks outright, so those blocks are inert rather than an install
+# that half works.
+homebrew_casks:
+  - name: abrsim
+    binaries: [abrsim]
+    repository:
+      owner: Allan-Nava
+      name: homebrew-tap
+      token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"
+    homepage: "https://github.com/Allan-Nava/abrsim"
+    description: "Simulate what an ABR player does with your HLS ladder on a real network, and report what it cost the viewer"
+    license: "PolyForm-Noncommercial-1.0.0"
+
+    # Homebrew Cask stamps com.apple.quarantine on everything it stages, and this
+    # binary is ad-hoc signed — that is the Go linker on arm64, not a Developer ID
+    # signature — so Gatekeeper rejects it. The failure mode is why this is worth
+    # a hook rather than a note in the README: `brew install --cask` reports
+    # success, and the first run dies on SIGKILL, exit 137, with no output at all.
+    # Not the "developer cannot be verified" dialog a GUI app gets — nothing. From
+    # a terminal that reads as a broken build, and whoever reports it will report
+    # the wrong bug. AB-44 is the real fix and needs a paid Developer ID; stripping
+    # the attribute makes the cask work now. Inherited from segcheck, which paid
+    # for this the hard way.
+    #
+    # `/usr/bin/xattr` by absolute path, never bare `xattr`: a Homebrew or conda
+    # Python `xattr` earlier on PATH does not accept `-r`, and the hook would fail
+    # on exactly the machines most likely to have one. `-dr` rather than `-d`
+    # because it exits 0 when the attribute is already absent — a reinstall, or
+    # HOMEBREW_NO_QUARANTINE — whereas `-d` exits 1 with "No such xattr", and a
+    # postflight that fails on a clean install is worse than the problem it fixes.
+    #
+    # `.exit_status.zero?` rather than `== 0`: `brew style` runs RuboCop over the
+    # tap and Style/NumericPredicate fails the audit on the comparison. The cask is
+    # generated from here, so fixing it in the tap by hand lasts until the next
+    # release overwrites it.
+    hooks:
+      post:
+        install: |
+          if system_command("/usr/bin/xattr", args: ["-h"]).exit_status.zero?
+            system_command "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "#{staged_path}/abrsim"]
+          end
+
+changelog:
+  # CHANGELOG.md is written by hand and is the source of truth. Generated release
+  # notes would compete with it and lose.
+  disable: true
+
+release:
+  draft: false
+  prerelease: auto
+  footer: |
+    ---
+    Full notes: [CHANGELOG.md](https://github.com/Allan-Nava/abrsim/blob/main/CHANGELOG.md)

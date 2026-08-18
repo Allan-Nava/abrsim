@@ -104,7 +104,11 @@ follow-up commit.
    version compare links at the foot of the file updated.
 5. Commit — a subject in the imperative naming the `AB-n` — then
    `git tag -a vX.Y.Z -m "Release X.Y.Z"` **on that commit**.
-6. Stop. The push is the maintainer's (`git push origin main --follow-tags`).
+6. Stop. The push is the maintainer's (`git push origin main --follow-tags`) —
+   and the push is what *publishes*: `.github/workflows/release.yml` fires on the
+   tag, runs the smoke test against the reference streams again, then goreleaser
+   builds the six archives, the checksums and the Homebrew cask. A tag that never
+   leaves the workstation ships nothing, which is the intended default.
 
 Version numbers are also milestone targets (M2 aims at `v0.2.0`, M3 at `v0.3.0`,
 M6 at `v0.5.0`): a docs-only or tooling-only release takes the next **patch** so
@@ -168,6 +172,30 @@ it cannot consume a minor a milestone has its name on.
 - **A quoted comma in an attribute list is the classic HLS trap.** Splitting
   `CODECS="avc1.640028,mp4a.40.2"` on commas loses the audio codec and produces
   a key of `mp4a.40.2"` that a lenient parser then ignores in silence.
+- **Homebrew stages the binary with `com.apple.quarantine`, and ours is only
+  ad-hoc signed** — that is the Go linker on arm64, not a Developer ID signature.
+  Gatekeeper then kills the first run with SIGKILL, exit 137, **and no output at
+  all**: not the "developer cannot be verified" dialog a GUI app gets, nothing. In
+  a terminal that reads as a broken build, so whoever hits it reports the wrong
+  bug. The cask's postflight strips the attribute; the reasons it is
+  `/usr/bin/xattr` by absolute path, `-dr` rather than `-d`, and
+  `.exit_status.zero?` rather than `== 0` are each a scar and are written next to
+  the code in `.goreleaser.yaml`. AB-44 is the real fix and needs a paid Apple
+  account.
+- **`HOMEBREW_TAP_TOKEN` expires, and the failure is quiet where it matters.**
+  Fine-grained PATs must expire. When it does, a release publishes its archives
+  and *then* fails at the cask step: the artifacts are fine, the tap is stale, and
+  `brew install` keeps installing the old version without saying so. A release
+  that went red after the archives uploaded is this, not a broken build.
+- **`goreleaser check` belongs in CI, not in the release.** Deprecated stanzas
+  fail it, and without the CI step the first pushed tag is where that is
+  discovered — with the tag already public and the release half-done. It runs on
+  every commit, where the fix costs nothing.
+- **Not every `--flag` in the docs is ours.** `docs.sh` reads `--word` tokens out
+  of the page to catch a flag documented after the CLI dropped it, and the install
+  block introduced `brew install --cask`: the check promptly reported `--cask` as
+  an abrsim flag that had gone missing. Lines invoking somebody else's program are
+  skipped now. Same lesson as the stylesheet below, twice in two releases.
 - **A `--name` in a stylesheet is not a flag.** `docs.sh` reads `--word` tokens
   out of the page to catch a flag documented after the CLI dropped it, and CSS
   custom properties are spelled the same way: the first run reported sixteen
@@ -203,7 +231,7 @@ be hand-edited. Items carry an invisible metadata comment:
 
 | Command | What it does |
 |---|---|
-| `check` | the checks, traces, algorithms and flags in the source are named in `docs/index.html` and `README.md`; no flag is documented that the CLI has lost; the page stays self-contained and its assets exist (the CI gate) |
+| `check` | the checks, traces, algorithms and flags in the source are named in `docs/index.html` and `README.md`; no flag is documented that the CLI has lost; every install command is backed by what ships it (cask, module path, image); the page stays self-contained and its assets exist (the CI gate) |
 | `names` | print what the source says exists |
 
 Milestones: **M1** the deterministic core (v0.1.0) · **M2** faithfulness
@@ -213,6 +241,14 @@ marking it done, never by deleting it and reusing the number.
 
 ## Pointers
 
+- `.goreleaser.yaml` + `.github/workflows/release.yml` — the release: six
+  archives, checksums and a Homebrew **cask** (a formula describes something built
+  from source; this is a prebuilt binary), published on a pushed `v*` tag after the
+  smoke test passes. Two things live outside the repository and cannot be fixed
+  from inside it: the `HOMEBREW_TAP_TOKEN` secret (fine-grained PAT on
+  `Allan-Nava/homebrew-tap`, Contents: read and write) and the Pages source
+  setting. The cask is macOS-only on purpose — `go install` and the archives cover
+  everything else, and a second packaging path exists to become the stale one.
 - `docs/index.html` — the Pages site: one hand-written file, no build step and
   nothing fetched at view time, served from `docs/` by
   `.github/workflows/pages.yml` (the repository's Pages source has to be set to

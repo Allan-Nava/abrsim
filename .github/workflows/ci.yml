@@ -49,6 +49,16 @@ jobs:
       - name: docs
         run: ./scripts/docs.sh check
 
+      # A deprecated goreleaser stanza fails `goreleaser check`, and without this
+      # step the first push of a tag is where we would find out — after the tag
+      # exists and with the release half-published. Checked on every commit
+      # instead, where the fix is free.
+      - name: release config
+        uses: goreleaser/goreleaser-action@v6
+        with:
+          version: "~> v2"
+          args: check
+
   vuln:
     runs-on: ubuntu-latest
     steps:

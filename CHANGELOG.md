@@ -7,6 +7,72 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [0.1.3] — 2026-08-19
+
+`brew install --cask allan-nava/tap/abrsim`. Which is to say: AB-31, and the gate
+that stops that sentence from being a lie.
+
+### Added
+
+- **The release pipeline** (AB-31): `.goreleaser.yaml` builds six archives
+  (linux, darwin, windows × amd64, arm64), a `checksums.txt`, and a Homebrew
+  **cask** into `Allan-Nava/homebrew-tap` — a cask rather than a formula, because
+  a formula describes something built from source and `brews` is deprecated
+  anyway. `-trimpath` and `-X main.version` are not cosmetic: a release binary
+  that reports itself as `dev` is a bug report nobody can trace to a commit.
+  Verified end to end locally with `goreleaser release --snapshot`: six archives,
+  the cask with its postflight, and `abrsim version` printing the stamped version
+  rather than `dev`.
+- **`.github/workflows/release.yml`**, whose *first* job is the reference-stream
+  smoke test. "Real streams before the tag" was this repository's rule and a
+  manual step, which is the kind that gets skipped on the day it would have
+  mattered — three design errors were found there and none by a unit test. A tag
+  no longer ships without it. `goreleaser check` moved into `ci.yml` on every
+  commit for the same reason in reverse: a deprecated stanza found on the first
+  pushed tag is found with the tag already public.
+- **Install, three ways**, in the README and on the site: the cask on macOS,
+  `go install` everywhere, prebuilt archives for anyone who wants neither. The
+  cask is macOS-only on purpose and the docs say so — `go install` and the
+  archives already cover Linux and Windows, and a second packaging path exists to
+  become the one that goes stale.
+- **`docs.sh` now gates install claims too** (AB-42). An install command is a
+  claim about something that ships, so `brew install` is checked against the cask
+  in `.goreleaser.yaml` *and* against the exact `owner/tap/name` coordinate
+  goreleaser will publish, `go install` against the module path in `go.mod`, and
+  `docker run` against an image the release actually builds — there is none, so
+  that claim is currently unmakeable, which is the point. A command that fails on
+  the reader's machine is worse than an undocumented one: they blame the tool.
+  Verified by breaking each one in a copy: no cask in the config, the wrong tap
+  coordinate, a foreign module path and a phantom image all fail the gate.
+- **Two follow-ups, in the backlog rather than in this release**: AB-43 (cosign
+  signature over the checksums and a syft SBOM, so "zero dependencies" is
+  verifiable rather than asserted) and AB-44 (a Developer ID signature and
+  notarisation, which needs a paid Apple account). Each addition is another way
+  for a first release to fail half-published, and the archives are worth more than
+  the signature until somebody is downloading them.
+
+### Fixed
+
+- The reverse flag check in `docs.sh` read `--cask` out of `brew install --cask`
+  and reported it as an abrsim flag the CLI had lost. Lines that invoke somebody
+  else's program are skipped now. Second time in two releases that a `--word` on
+  the page was not ours — the first was a CSS custom property — and both are traps
+  in `AGENTS.md`.
+
+### Known limitations
+
+The cask installs a binary Gatekeeper does not trust on its own: Homebrew stages
+it with `com.apple.quarantine`, the Go linker's arm64 signature is ad-hoc, and the
+first run would die on SIGKILL with **no output at all** — which reads as a broken
+build rather than an unsigned one. The cask's postflight strips the attribute, so
+Homebrew installs work; anyone who downloads the archive directly on macOS still
+has to clear it themselves until AB-44.
+
+Nothing is published until the tag is pushed, and the cask lands only if
+`HOMEBREW_TAP_TOKEN` is set on this repository. Without it a release will publish
+its archives and then fail at the cask step — the artifacts fine, the tap stale,
+and `brew install` quietly installing the previous version.
+
 ## [0.1.2] — 2026-08-19
 
 A page and a mark. No simulator code changed; what changed is that the tool now
@@ -167,7 +233,8 @@ no judgement (AB-34) — both attempts at a severity fired on healthy reference
 streams, and a measurement with an honest "no opinion" is worth more than a
 severity that cries wolf.
 
-[Unreleased]: https://github.com/Allan-Nava/abrsim/compare/v0.1.2...HEAD
+[Unreleased]: https://github.com/Allan-Nava/abrsim/compare/v0.1.3...HEAD
+[0.1.3]: https://github.com/Allan-Nava/abrsim/compare/v0.1.2...v0.1.3
 [0.1.2]: https://github.com/Allan-Nava/abrsim/compare/v0.1.1...v0.1.2
 [0.1.1]: https://github.com/Allan-Nava/abrsim/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/Allan-Nava/abrsim/releases/tag/v0.1.0

@@ -65,11 +65,22 @@ what a *player* does with what those tools describe.
 ## Install
 
 ```sh
+# macOS — Homebrew cask, published from the release tags
+brew install --cask allan-nava/tap/abrsim
+
+# Go — every platform, including Linux Homebrew users
 go install github.com/Allan-Nava/abrsim/cmd/abrsim@latest
+
+# Or a prebuilt archive for linux/darwin/windows on amd64/arm64
+# https://github.com/Allan-Nava/abrsim/releases
 ```
 
 One static binary, no dependencies — `go.mod` has no `require` block and CI
 enforces it. No ffmpeg, no browser, no network during the simulation itself.
+
+The cask is macOS-only on purpose: `go install` and the archives already cover
+Linux and Windows, and a second packaging path exists to become the one that goes
+stale.
 
 ## Checks
 
