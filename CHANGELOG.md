@@ -7,6 +7,74 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [0.4.0] — 2026-08-19
+
+**M6 is complete.** The tool no longer answers "what did this ladder cost *a*
+viewer" — it answers what it cost an audience, which rungs earned their keep, what
+they cost to ship, and what any of it is worth.
+
+### Added
+
+- **Rung attribution** (AB-38): `sim.Result.RungUse` and an audience-wide table —
+  seconds of playback each rung served, its share, how many viewers ever chose it.
+  `ladder-gap` names a hole; this names the rungs that *do* exist and what they were
+  worth. **A rung nothing selected is named rather than dropped**: it is exactly the
+  one somebody is deciding about. Past a handful, idle rungs collapse to a single
+  line that still names them — Apple's advanced example has 54 rungs and fifty of
+  them serve nothing on a 3 Mbps cell, which buried the report until the first real
+  run showed it.
+- **What the ladder costs to ship** (AB-39): `BytesPerViewerHour`, per rung and per
+  audience, from the bytes that really crossed the wire rather than any declared
+  `BANDWIDTH`. Paired with the attribution it makes dropping a rung a number in
+  **both** directions — seconds of rebuffer added against gigabytes saved. No
+  severity, ever: what a gigabyte is worth is a commercial question and abrsim does
+  not know the contract.
+- **The screen is part of the ladder** (AB-40): `--devices phone:60,tv:40`. A screen
+  does not fetch a rung it cannot show, so the report finally distinguishes what the
+  top rung *buys* from what it *costs*. On Apple's reference stream over
+  `steps-down`, sixty per cent phones: the phone half froze for nothing and cost
+  0.39 GiB an hour, the televisions froze a second and cost 0.64 — the same ladder,
+  two different bills. Three rules the implementation would be wrong without: the
+  mix is **an input and never a guess** (with none stated no screen is assumed, and
+  the shares must add up to 100 rather than being quietly normalised); a rung whose
+  height nobody declared is **kept**, because unknown is not too big; and the
+  shortest rung always survives, because capping a whole ladder away would report a
+  stream nobody can watch — a claim about the stream rather than about the screen.
+- **A QoE score with its weights printed beside it** (AB-41): the linear QoE the
+  published ABR literature optimises against, in Pensieve's parametrisation,
+  normalised per second of playback so the number reads as a sentence — **a 2.4
+  means the session was worth as much as watching a steady 2.4 Mbps with no stalls
+  and no switching**. The weights (4.3 Mbps-equivalent per frozen second, 1.0 per
+  Mbps switched) are the literature's, not ours; they travel with the score
+  everywhere it is printed; and no severity is attached to it until AB-16 shows our
+  numbers land where the papers' do.
+
+### Fixed
+
+- **Rung attribution had to be re-keyed to the full ladder** in the same commit
+  that introduced `--devices`: with two viewers on different ladders, indexing rungs
+  by position attributes a television's 1080p seconds to a phone's top rung. It
+  matches on the rung's name against the ladder as read now.
+- **The QoE row printed `0.00` for a whole audience**, because the score is already
+  Mbps-equivalent and it was going through the formatter that divides bitrates by a
+  million. Caught by a real run against a real stream, not by a unit test — the
+  fourth time in this project's history — and now pinned by one.
+
+### Changed
+
+- The milestones moved up a release each now that M6 is done: M2 is `now` and aims
+  at `v0.5.0`, M3 at `v0.6.0`, M4 at `v0.7.0`, M7 at `v0.8.0`.
+
+### Known limitations
+
+The audience varies in **bandwidth and screen**, and nothing else: every viewer
+still starts at the same instant, watches the same asset to the end, and shares one
+player configuration. The device ceilings are judgements stated in the open
+(`phone` 720p, `tablet` 1080p, `laptop` 1440p, `desktop` 2160p, `tv` uncapped) —
+wrong in the kind direction they over-count the top rung, which is the error that
+flatters a ladder. And the QoE weights are the literature's: they make abrsim
+comparable with published results, not right.
+
 ## [0.3.3] — 2026-08-19
 
 `backlog.sh issues` has existed since the backlog did, and nothing ever ran it —
@@ -619,7 +687,8 @@ no judgement (AB-34) — both attempts at a severity fired on healthy reference
 streams, and a measurement with an honest "no opinion" is worth more than a
 severity that cries wolf.
 
-[Unreleased]: https://github.com/Allan-Nava/abrsim/compare/v0.3.3...HEAD
+[Unreleased]: https://github.com/Allan-Nava/abrsim/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/Allan-Nava/abrsim/compare/v0.3.3...v0.4.0
 [0.3.3]: https://github.com/Allan-Nava/abrsim/compare/v0.3.2...v0.3.3
 [0.3.2]: https://github.com/Allan-Nava/abrsim/compare/v0.3.1...v0.3.2
 [0.3.1]: https://github.com/Allan-Nava/abrsim/compare/v0.3.0...v0.3.1

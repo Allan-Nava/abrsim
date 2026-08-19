@@ -5,6 +5,8 @@ import (
 	"testing"
 
 	"github.com/Allan-Nava/abrsim/internal/abr"
+	"github.com/Allan-Nava/abrsim/internal/analyze"
+	"github.com/Allan-Nava/abrsim/internal/device"
 	"github.com/Allan-Nava/abrsim/internal/finding"
 	"github.com/Allan-Nava/abrsim/internal/manifest"
 	"github.com/Allan-Nava/abrsim/internal/sim"
@@ -374,6 +376,252 @@ func TestRun_AQuietCheckQuotesTheFirstViewer(t *testing.T) {
 	for _, c := range got.Checks {
 		if c.Loud == 0 && c.WorstViewer != 0 {
 			t.Errorf("%s is quiet everywhere but quotes viewer %d — with nothing to rank, the sentence should be the first viewer's so the row is stable", c.Check, c.WorstViewer)
+		}
+	}
+}
+
+func TestRun_AttributesThePlaybackAndTheEgressToTheRungs(t *testing.T) {
+	// AB-38 and AB-39 over an audience: which rungs earned their place, and what
+	// an hour of watching costs to deliver.
+	l, base := ladder(30), mustTrace(t, "mobile-4g")
+	got, err := Run(l, base, "bola", opts(), 24)
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	if len(got.Rungs) != 2 {
+		t.Fatalf("%d rungs attributed, want 2 — every rung on the ladder, chosen or not", len(got.Rungs))
+	}
+
+	var seconds, bytes float64
+	for _, u := range got.Rungs {
+		if u.Name == "" {
+			t.Errorf("rung %d has no name: %+v", u.Rung, u)
+		}
+		if u.Seconds < 0 || u.Share < 0 || u.Share > 1 {
+			t.Errorf("rung %s: seconds %v share %v", u.Name, u.Seconds, u.Share)
+		}
+		if u.Viewers < 0 || u.Viewers > got.Viewers {
+			t.Errorf("rung %s was used by %d of %d viewers", u.Name, u.Viewers, got.Viewers)
+		}
+		seconds += u.Seconds
+		bytes += float64(u.Bytes)
+	}
+
+	// The attribution has to add up to what the audience actually watched, or it
+	// is a table of plausible numbers rather than a measurement.
+	var media float64
+	var totalBytes int64
+	for _, v := range got.Runs {
+		media += v.Media
+		totalBytes += v.Bytes
+	}
+	if diff := seconds - media; diff > 0.01 || diff < -0.01 {
+		t.Errorf("the rungs account for %.2fs of playback and the audience watched %.2fs", seconds, media)
+	}
+	if int64(bytes) != totalBytes {
+		t.Errorf("the rungs account for %d bytes and the audience fetched %d", int64(bytes), totalBytes)
+	}
+
+	var shares float64
+	for _, u := range got.Rungs {
+		shares += u.Share
+	}
+	if shares < 0.99 || shares > 1.01 {
+		t.Errorf("the shares sum to %.3f, want 1", shares)
+	}
+
+	if got.Egress.P50 <= 0 {
+		t.Errorf("no egress rate for the audience: %+v", got.Egress)
+	}
+	if got.Egress.Min > got.Egress.P50 || got.Egress.P50 > got.Egress.Max {
+		t.Errorf("the egress distribution is inside out: %+v", got.Egress)
+	}
+}
+
+func TestRun_ARungTheAudienceNeverChoseIsInTheTableAtZero(t *testing.T) {
+	// A ladder whose top rung nothing on this line can sustain. The rung still
+	// costs encoding, storage and egress, so the table has to show it earning
+	// nothing rather than leave it out.
+	l := ladder(20)
+	l.Renditions = append(l.Renditions, manifest.Rendition{
+		Name: "40000k", Bandwidth: 40_000_000, Average: 40_000_000,
+		Width: 3840, Height: 2160, Codecs: "avc1.640033", URI: "test://uhd",
+	})
+	for i := 0; i < 20; i++ {
+		l.Renditions[2].Segments = append(l.Renditions[2].Segments, manifest.Segment{
+			URI: "test://uhd/seg", Duration: 4, Bytes: 40_000_000 * 4 / 8, Measured: true,
+		})
+	}
+	got, err := Run(l, mustTrace(t, "mobile-4g"), "bola", opts(), 12)
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	if len(got.Rungs) != 3 {
+		t.Fatalf("%d rungs, want 3", len(got.Rungs))
+	}
+	top := got.Rungs[2]
+	if top.Seconds != 0 || top.Viewers != 0 || top.Bytes != 0 {
+		t.Errorf("the 40 Mbps rung on a 3 Mbps cell reads %+v, want nothing served", top)
+	}
+	if top.Name != "40000k" {
+		t.Errorf("the unused rung is unnamed: %+v", top)
+	}
+}
+
+func TestRun_ScoresTheAudienceAndPrintsTheWeightsWithIt(t *testing.T) {
+	l, base := ladder(30), mustTrace(t, "steps-down")
+	got, err := Run(l, base, "bola", opts(), 24)
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	if got.QoEWeights != analyze.DefaultQoEWeights() {
+		t.Errorf("the report carries %+v, want the literature's %+v — a score that travels without its weights is a grade nobody can defend",
+			got.QoEWeights, analyze.DefaultQoEWeights())
+	}
+	if got.QoE.Viewers != got.Viewers {
+		t.Errorf("QoE was scored for %d of %d viewers", got.QoE.Viewers, got.Viewers)
+	}
+	if got.QoE.Min > got.QoE.P50 || got.QoE.P50 > got.QoE.Max {
+		t.Errorf("the QoE distribution is inside out: %+v", got.QoE)
+	}
+	// On a staircase down, the viewer who froze for a minute cannot score as well
+	// as the one who did not: the tail of the score is the tail of the audience.
+	if got.QoE.Min >= got.QoE.Max {
+		t.Errorf("every viewer scored the same (%v) on a trace that walks the whole range", got.QoE.Min)
+	}
+	for _, v := range got.Runs {
+		if v.Frozen > 0 && v.QoE >= got.QoE.Max {
+			t.Errorf("viewer %d froze for %.1fs and still scored the best QoE in the audience", v.Index, v.Frozen)
+		}
+	}
+}
+
+// deviceLadder is three rungs with real heights, so a ceiling has something to
+// bite on: 360p at 800k, 720p at 2.5M, 1080p at 5M.
+func deviceLadder(segments int) manifest.Ladder {
+	l := manifest.Ladder{Source: "test://devices"}
+	for _, r := range []struct {
+		name string
+		bps  int64
+		h    int
+	}{{"360p", 800_000, 360}, {"720p", 2_500_000, 720}, {"1080p", 5_000_000, 1080}} {
+		rend := manifest.Rendition{
+			Name: r.name, Bandwidth: r.bps, Average: r.bps,
+			Width: r.h * 16 / 9, Height: r.h, Codecs: "avc1.4d401f", URI: "test://" + r.name,
+		}
+		for i := 0; i < segments; i++ {
+			rend.Segments = append(rend.Segments, manifest.Segment{
+				URI: "test://seg", Duration: 4, Bytes: r.bps * 4 / 8, Measured: true,
+			})
+		}
+		l.Renditions = append(l.Renditions, rend)
+	}
+	return l
+}
+
+func TestRunWith_APhoneNeverFetchesTheRungItCannotShow(t *testing.T) {
+	mix, err := device.Parse("phone:50,tv:50")
+	if err != nil {
+		t.Fatal(err)
+	}
+	// office-wifi is fast enough that every viewer would otherwise sit on 1080p,
+	// so any 1080p playback left in the report belongs to a screen that can use it.
+	got, err := RunWith(deviceLadder(30), mustTrace(t, "office-wifi"), "throughput", opts(), 20, mix)
+	if err != nil {
+		t.Fatalf("RunWith: %v", err)
+	}
+	if got.DeviceMix != "phone:50,tv:50" {
+		t.Errorf("the report says the mix was %q — it has to say what it was asked for", got.DeviceMix)
+	}
+	if len(got.Devices) != 2 {
+		t.Fatalf("%d device classes in the report, want 2", len(got.Devices))
+	}
+	byName := map[string]DeviceSpread{}
+	for _, d := range got.Devices {
+		byName[d.Name] = d
+	}
+	if byName["phone"].Viewers != 10 || byName["tv"].Viewers != 10 {
+		t.Errorf("the mix came out as %d phones and %d televisions of 20", byName["phone"].Viewers, byName["tv"].Viewers)
+	}
+
+	var top RungUse
+	for _, u := range got.Rungs {
+		if u.Name == "1080p" {
+			top = u
+		}
+	}
+	if top.Viewers == 0 {
+		t.Fatal("nobody watched 1080p on office-wifi, so this fixture proves nothing")
+	}
+	if top.Viewers > 10 {
+		t.Errorf("1080p was fetched by %d of 20 viewers, and only 10 have a screen that can show it", top.Viewers)
+	}
+	for _, v := range got.Runs {
+		if v.Device == "" {
+			t.Errorf("viewer %d has no device class", v.Index)
+		}
+	}
+}
+
+func TestRunWith_AttributionStillAddsUpWhenLaddersDiffer(t *testing.T) {
+	mix, _ := device.Parse("phone:50,tv:50")
+	got, err := RunWith(deviceLadder(20), mustTrace(t, "office-wifi"), "bola", opts(), 16, mix)
+	if err != nil {
+		t.Fatalf("RunWith: %v", err)
+	}
+	if len(got.Rungs) != 3 {
+		t.Fatalf("%d rungs, want the full ladder's 3 even though half the audience only saw 2", len(got.Rungs))
+	}
+	var seconds, media float64
+	for _, u := range got.Rungs {
+		seconds += u.Seconds
+	}
+	for _, v := range got.Runs {
+		media += v.Media
+	}
+	if diff := seconds - media; diff > 0.01 || diff < -0.01 {
+		t.Errorf("the rungs account for %.2fs and the audience watched %.2fs — attribution indexed by position breaks the moment two viewers have different ladders", seconds, media)
+	}
+}
+
+func TestRun_WithNoMixNothingChangesAndTheReportSaysSo(t *testing.T) {
+	l, base := deviceLadder(20), mustTrace(t, "mobile-4g")
+	plain, err := Run(l, base, "bola", opts(), 12)
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	if plain.DeviceMix != "" || len(plain.Devices) != 0 {
+		t.Errorf("a run with no --devices reported a mix (%q, %d classes) — abrsim does not know who watches this stream", plain.DeviceMix, len(plain.Devices))
+	}
+	empty, err := RunWith(l, base, "bola", opts(), 12, device.Mix{})
+	if err != nil {
+		t.Fatalf("RunWith: %v", err)
+	}
+	if !sameStat(plain.Frozen, empty.Frozen) || !sameStat(plain.QoE, empty.QoE) {
+		t.Error("an empty mix simulated something different from no mix at all")
+	}
+	for _, v := range plain.Runs {
+		if v.Device != "" {
+			t.Errorf("viewer %d was given a device nobody asked for: %q", v.Index, v.Device)
+		}
+	}
+}
+
+func TestRunWith_IsDeterministicWithAMix(t *testing.T) {
+	mix, _ := device.Parse("phone:40,tablet:20,tv:40")
+	a, err := RunWith(deviceLadder(20), mustTrace(t, "steps-down"), "bola", opts(), 20, mix)
+	if err != nil {
+		t.Fatal(err)
+	}
+	b, _ := RunWith(deviceLadder(20), mustTrace(t, "steps-down"), "bola", opts(), 20, mix)
+	for i := range a.Runs {
+		if a.Runs[i] != b.Runs[i] {
+			t.Fatalf("viewer %d: %+v then %+v", i, a.Runs[i], b.Runs[i])
+		}
+	}
+	for i := range a.Devices {
+		if a.Devices[i].Name != b.Devices[i].Name || a.Devices[i].Viewers != b.Devices[i].Viewers {
+			t.Errorf("device %d: %+v then %+v", i, a.Devices[i], b.Devices[i])
 		}
 	}
 }

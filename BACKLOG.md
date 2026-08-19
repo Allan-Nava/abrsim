@@ -11,7 +11,7 @@ touching this file, or CI will fail.
 ## How to write an item
 
 ```
-## M2 — Title of the milestone <!-- ms: target=v0.4.0 phase=now -->
+## M2 — Title of the milestone <!-- ms: target=v0.5.0 phase=now -->
 
 - [ ] **AB-12 — Short name**: what it is, why it earns its place, what it
   needs to touch. <!-- ab: prio=high size=L labels=manifest -->
@@ -112,7 +112,7 @@ itself — the run has to be reproducible byte for byte.
   built on declared bitrates, and a top-rung exclusion with a magic threshold.
   <!-- ab: prio=high size=M labels=tests ver=0.1.0 -->
 
-## M2 — Faithfulness <!-- ms: target=v0.4.0 phase=next -->
+## M2 — Faithfulness <!-- ms: target=v0.5.0 phase=now -->
 
 Everything that stands between "a plausible number" and "a number an encoder
 setting should be changed on".
@@ -176,7 +176,7 @@ setting should be changed on".
   measure what the viewer waits. The rebuffer nobody counts is the one after a
   scrub. <!-- ab: prio=low size=M labels=sim -->
 
-## M3 — Comparison and CI <!-- ms: target=v0.5.0 phase=later -->
+## M3 — Comparison and CI <!-- ms: target=v0.6.0 phase=later -->
 
 One run answers a question; the tool earns a place in a pipeline when it can
 answer *did this change make it better*.
@@ -196,7 +196,7 @@ answer *did this change make it better*.
   for plotting, and markdown output for pasting into an incident document.
   <!-- ab: prio=med size=S labels=output -->
 
-## M4 — Integration <!-- ms: target=v0.6.0 phase=later -->
+## M4 — Integration <!-- ms: target=v0.7.0 phase=later -->
 
 - [ ] **AB-25 — Read sizes from a segcheck report**: segcheck already downloaded
   and measured the segments; taking its JSON turns AB-4's estimate into real
@@ -211,7 +211,7 @@ answer *did this change make it better*.
 - [ ] **AB-28 — Container image**: a static image for pipelines that will not
   install a binary. <!-- ab: prio=low size=S labels=delivery -->
 
-## M6 — The audience, not the session <!-- ms: target=v0.3.0 phase=now -->
+## M6 — The audience, not the session <!-- ms: target=v0.4.0 phase=shipped -->
 
 **This milestone went first.** M2 was the one in flight and the maintainer chose
 to start here instead, so the targets moved rather than the meanings: M6 aims at
@@ -255,28 +255,46 @@ invent a measurement, one more axis.
   stays ascending because a table of numbers read out of order is a table people
   misread.
   comes before the p50 one. <!-- ab: prio=high size=M labels=check,output ver=0.3.0 -->
-- [ ] **AB-38 — Rung attribution**: how many seconds of the audience's playback
+- [x] **AB-38 — Rung attribution**: how many seconds of the audience's playback
   each rung actually served, per rung, from the timeline the simulator already
   emits. A rung nothing ever selects costs encoding, storage and egress and buys
   no viewer anything; a rung carrying 60% of playback is the one nobody should
   touch. `ladder-gap` names a hole — this names the rungs that are pulling their
   weight, which is the other half of the same argument.
-  <!-- ab: prio=high size=M labels=check,output -->
-- [ ] **AB-39 — What the ladder costs to ship**: bytes delivered per viewer-hour,
+  Shipped as sim.Result.RungUse plus an audience-wide table: seconds served,
+  share, how many viewers ever chose the rung, and its egress per viewer-hour. A
+  rung nothing selected is named rather than dropped — it is the one somebody
+  is deciding about — and with more than a handful of idle rungs they collapse
+  to one line that still names them, because Apple's advanced example has 54 and
+  fifty of them serve nothing on a 3 Mbps cell.
+  <!-- ab: prio=high size=M labels=check,output ver=0.4.0 -->
+- [x] **AB-39 — What the ladder costs to ship**: bytes delivered per viewer-hour,
   per rung, from `Result.DeliveredBitrate` and never from a declared `BANDWIDTH`
   — the trap that once produced an `efficiency` reading of 129%. Paired with
   AB-38 it makes dropping a rung a number in both directions: seconds of
   rebuffer added against gigabytes of egress saved. No severity: what a gigabyte
   is worth is a commercial judgement and abrsim does not know the contract.
-  <!-- ab: prio=med size=M labels=check,delivery -->
-- [ ] **AB-40 — The screen is part of the ladder**: a viewer on a phone cannot
+  Shipped as sim.Result.BytesPerViewerHour and a per-rung column, from the bytes
+  that really crossed the wire. No severity: what a gigabyte is worth is a
+  commercial question this tool cannot answer.
+  <!-- ab: prio=med size=M labels=check,delivery ver=0.4.0 -->
+- [x] **AB-40 — The screen is part of the ladder**: a viewer on a phone cannot
   see the difference between the 1080p rung and the 720p one, so counting them
   in "the top rung served 40% of playback" overstates what the top rung buys.
   A device mix caps the useful rung per population segment. The mix is an input
   and never a guess: with none stated the report is per device class and makes no
   single judgement, because inventing an audience is inventing a measurement.
-  <!-- ab: prio=med size=M labels=sim,cli -->
-- [ ] **AB-41 — QoE as one number, with its weights printed next to it**: the
+  Shipped as --devices phone:60,tv:40, an input that is never guessed: with none
+  stated no screen is assumed, and the shares must add up to 100 rather than
+  being quietly normalised. A screen does not fetch a rung it cannot show; a
+  rung whose height nobody declared is kept, because unknown is not too big; and
+  the shortest rung always survives, because capping a whole ladder away would
+  report a stream nobody can watch. Attribution had to be re-keyed to the full
+  ladder in the same commit: with two viewers on different ladders, indexing
+  rungs by position attributes a television's 1080p seconds to a phone's top
+  rung.
+  <!-- ab: prio=med size=M labels=sim,cli ver=0.4.0 -->
+- [x] **AB-41 — QoE as one number, with its weights printed next to it**: the
   linear QoE the published ABR literature scores against — rung utility, minus a
   rebuffer penalty, minus a switch penalty — so an abrsim population is
   comparable with a published result instead of only with itself. The weights are
@@ -284,9 +302,14 @@ invent a measurement, one more axis.
   named threshold struct as every other one and print alongside the score. No
   severity until AB-16 shows our numbers land where the papers' do; a score with
   no opinion beats a grade nobody can defend.
-  <!-- ab: prio=med size=M labels=check,abr -->
+  Shipped as analyze.QoE with the literature's weights (Pensieve: 4.3 per frozen
+  second, 1.0 per Mbps switched), normalised per second of playback so the
+  number reads as a sentence: a 2.4 is worth a steady 2.4 Mbps with no stalls
+  and no switching. The weights print with the score everywhere it appears, and
+  no severity is attached until AB-16.
+  <!-- ab: prio=med size=M labels=check,abr ver=0.4.0 -->
 
-## M7 — A ladder you can defend <!-- ms: target=v0.7.0 phase=later -->
+## M7 — A ladder you can defend <!-- ms: target=v0.8.0 phase=later -->
 
 Everything up to here **names** a defect. An encoding team then has to decide what
 to do about it, and that decision — add a rung, drop one, move two — is where the

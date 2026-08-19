@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"strings"
 
 	"github.com/Allan-Nava/abrsim/internal/finding"
 	"github.com/Allan-Nava/abrsim/internal/manifest"
@@ -89,6 +90,8 @@ func TextPopulation(w io.Writer, r PopulationReport, colour bool) error {
 		{"stalls", p.Stalls, ""},
 		{"switches/min", p.SwitchRate, ""},
 		{"delivered", p.Delivered, "Mbps"},
+		{"qoe", p.QoE, "score"},
+		{"egress", p.Egress, "GiB/h"},
 	}
 	// Ascending, because a table of numbers read out of order is a table people
 	// misread. "The p95 first" is honoured where a reader looks first: the check
@@ -134,6 +137,78 @@ func TextPopulation(w io.Writer, r PopulationReport, colour bool) error {
 	if lo != hi {
 		watched = secs(lo) + "–" + secs(hi) + " of media"
 	}
+	// A score never appears without the judgement that produced it.
+	if p.QoE.Viewers > 0 {
+		if _, err := fmt.Fprintf(w, "%s\n", paint(dim, fmt.Sprintf(
+			"qoe is Mbps-equivalent: a 2.4 is worth a steady 2.4 Mbps with no stalls and no switching, charging %.1f per frozen second and %.1f per Mbps switched (the literature's weights, not ours)",
+			p.QoEWeights.Rebuffer, p.QoEWeights.Switch))); err != nil {
+			return err
+		}
+	}
+
+	// What each rung actually served. `ladder-gap` names a hole; this names the
+	// rungs that earned their place, and the ones that did not.
+	if len(p.Rungs) > 0 {
+		if _, err := fmt.Fprintf(w, "\n%-12s %10s %10s %10s %10s %12s\n",
+			"rung", "bitrate", "served", "share", "viewers", "GiB/h"); err != nil {
+			return err
+		}
+		var idle []string
+		for _, u := range p.Rungs {
+			if u.Segments == 0 {
+				idle = append(idle, u.Name)
+				continue
+			}
+			if _, err := fmt.Fprintf(w, "%-12s %10s %10s %10s %10s %12s\n",
+				u.Name, fmt.Sprintf("%.1fM", float64(u.Bitrate)/1e6), secs(u.Seconds),
+				fmt.Sprintf("%.0f%%", u.Share*100), fmt.Sprintf("%d", u.Viewers),
+				fmt.Sprintf("%.2f", u.PerViewerHour/(1<<30))); err != nil {
+				return err
+			}
+		}
+		// The rungs nothing chose get one line rather than one row each: Apple's
+		// advanced example has 54 rungs and fifty of them serve nothing on a 3 Mbps
+		// cell, which buries the report. They are still *named* — an unused rung is
+		// what an operator is deciding about, so hiding it would be worse than the
+		// clutter.
+		if len(idle) > 0 {
+			shown := idle
+			more := ""
+			if len(shown) > 6 {
+				shown, more = shown[:6], fmt.Sprintf(" and %d more", len(idle)-6)
+			}
+			if _, err := fmt.Fprintf(w, "%s\n", paint(dim, fmt.Sprintf(
+				"%d rungs served nothing at all: %s%s — they cost encoding, storage and egress and bought no viewer anything on this trace (--json lists every rung)",
+				len(idle), strings.Join(shown, ", "), more))); err != nil {
+				return err
+			}
+		}
+	}
+
+	// The audience by screen, and only when somebody said what the screens are.
+	if len(p.Devices) > 0 {
+		if _, err := fmt.Fprintf(w, "\n%-10s %8s %8s %12s %10s %12s\n",
+			"screen", "ceiling", "viewers", "frozen p50", "qoe p50", "GiB/h p50"); err != nil {
+			return err
+		}
+		for _, d := range p.Devices {
+			ceiling := "no cap"
+			if d.Ceiling > 0 {
+				ceiling = fmt.Sprintf("%dp", d.Ceiling)
+			}
+			if _, err := fmt.Fprintf(w, "%-10s %8s %8d %12s %10s %12s\n",
+				d.Name, ceiling, d.Viewers, secs(d.Frozen.P50),
+				fmt.Sprintf("%.2f", d.QoE.P50), fmt.Sprintf("%.2f", d.Egress.P50/(1<<30))); err != nil {
+				return err
+			}
+		}
+		if _, err := fmt.Fprintf(w, "%s\n", paint(dim, fmt.Sprintf(
+			"the mix `%s` is what you asked for, not what abrsim guessed: a rung taller than a screen is not fetched by it",
+			p.DeviceMix))); err != nil {
+			return err
+		}
+	}
+
 	tail := ""
 	if p.Startup.P95 != nil && p.Frozen.P95 != nil {
 		tail = fmt.Sprintf(" — at the p95: %s to the first frame, %s frozen",
@@ -164,6 +239,12 @@ func statCell(v float64, unit string) string {
 		return fmt.Sprintf("%.2f", v/1e6)
 	case "s":
 		return secs(v)
+	case "GiB/h":
+		return fmt.Sprintf("%.2f", v/(1<<30))
+	case "score":
+		// Already Mbps-equivalent: dividing it by a million printed 0.00 for a
+		// whole audience, and the run that caught it was a real one.
+		return fmt.Sprintf("%.2f", v)
 	}
 	if v == float64(int64(v)) {
 		return fmt.Sprintf("%d", int64(v))

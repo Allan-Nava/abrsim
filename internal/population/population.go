@@ -27,6 +27,7 @@ import (
 
 	"github.com/Allan-Nava/abrsim/internal/abr"
 	"github.com/Allan-Nava/abrsim/internal/analyze"
+	"github.com/Allan-Nava/abrsim/internal/device"
 	"github.com/Allan-Nava/abrsim/internal/finding"
 	"github.com/Allan-Nava/abrsim/internal/manifest"
 	"github.com/Allan-Nava/abrsim/internal/sim"
@@ -70,10 +71,12 @@ type Viewer struct {
 	Frozen    float64        `json:"frozen"`
 	Stalls    int            `json:"stalls"`
 	Switches  int            `json:"switches"`
+	Device    string         `json:"device,omitempty"`
 	Media     float64        `json:"media"`
 	Wall      float64        `json:"wall"`
 	Bytes     int64          `json:"bytes"`
 	Delivered float64        `json:"delivered_bps"`
+	QoE       float64        `json:"qoe"`
 	Worst     finding.Status `json:"worst"`
 }
 
@@ -115,6 +118,32 @@ type CheckSpread struct {
 	worstHasValue bool
 }
 
+// RungUse is one rung's share of the audience: the seconds it served, how many
+// viewers ever chose it, and the bytes it cost to ship.
+type RungUse struct {
+	Rung     int     `json:"rung"`
+	Name     string  `json:"name"`
+	Bitrate  int64   `json:"bitrate"`
+	Viewers  int     `json:"viewers"`
+	Segments int     `json:"segments"`
+	Seconds  float64 `json:"seconds"`
+	Share    float64 `json:"share"`
+	Bytes    int64   `json:"bytes"`
+	// PerViewerHour is this rung's bytes per hour of watching across the whole
+	// audience — the figure a delivery bill is made of, per rung.
+	PerViewerHour float64 `json:"bytes_per_viewer_hour"`
+}
+
+// DeviceSpread is one class of screen inside the audience.
+type DeviceSpread struct {
+	Name    string `json:"name"`
+	Ceiling int    `json:"ceiling"`
+	Viewers int    `json:"viewers"`
+	Frozen  Stat   `json:"frozen"`
+	QoE     Stat   `json:"qoe"`
+	Egress  Stat   `json:"bytes_per_viewer_hour"`
+}
+
 // Report is the whole audience.
 type Report struct {
 	Viewers   int    `json:"viewers"`
@@ -127,8 +156,30 @@ type Report struct {
 	SwitchRate Stat `json:"switches_per_min"`
 	Delivered  Stat `json:"delivered_bps"`
 
+	// QoE is the linear score of AB-41 over the audience, and QoEWeights are the
+	// prices behind it. They travel together on purpose: a score printed without
+	// the judgement that produced it is a grade nobody can defend.
+	QoE        Stat               `json:"qoe"`
+	QoEWeights analyze.QoEWeights `json:"qoe_weights"`
+
+	// Egress is what an hour of one viewer's watching costs to deliver, spread
+	// over the audience (AB-39). No severity: what a gigabyte is worth is a
+	// commercial question and abrsim does not know the contract.
+	Egress Stat `json:"bytes_per_viewer_hour"`
+
 	Checks []CheckSpread `json:"checks"`
-	Runs   []Viewer      `json:"runs"`
+	// Rungs is what each rung of the ladder actually served across the whole
+	// audience (AB-38), including the rungs nothing ever chose — those are the
+	// ones worth arguing about, and leaving them out would hide them.
+	Rungs []RungUse `json:"rungs"`
+	Runs  []Viewer  `json:"runs"`
+
+	// DeviceMix is the mix as it was asked for, and Devices the audience split by
+	// it (AB-40). Both are empty unless --devices was given: abrsim does not know
+	// who watches this stream, and inventing an audience is inventing a
+	// measurement.
+	DeviceMix string         `json:"device_mix,omitempty"`
+	Devices   []DeviceSpread `json:"devices,omitempty"`
 
 	// Estimated is true when any segment size was derived from the declared
 	// bitrate: it travels with the population for the same reason it travels
@@ -156,7 +207,15 @@ func (r Report) Worst() finding.Status {
 }
 
 // Run simulates viewers sessions over variations of base and returns the spread.
+// Every viewer gets the whole ladder: with no device mix stated there is nothing to
+// cap it with.
 func Run(l manifest.Ladder, base trace.Trace, algName string, opts sim.Options, viewers int) (Report, error) {
+	return RunWith(l, base, algName, opts, viewers, device.Mix{})
+}
+
+// RunWith is Run with a device mix: each viewer is given a class of screen, and a
+// screen that cannot show a rung does not fetch it (AB-40).
+func RunWith(l manifest.Ladder, base trace.Trace, algName string, opts sim.Options, viewers int, mix device.Mix) (Report, error) {
 	if viewers < 1 {
 		return Report{}, fmt.Errorf("a population needs at least one viewer, not %d", viewers)
 	}
@@ -165,6 +224,18 @@ func Run(l manifest.Ladder, base trace.Trace, algName string, opts sim.Options, 
 	}
 
 	traces := trace.Population(base, viewers)
+	// One ladder per viewer, because a phone's ladder is not a television's. With
+	// no mix this is the same ladder n times, which is what it was before.
+	devices := mix.Assign(viewers)
+	ladders := make([]manifest.Ladder, viewers)
+	for v := range ladders {
+		ladders[v] = l
+		if v < len(devices) {
+			if spec, ok := device.Class(devices[v]); ok {
+				ladders[v] = l.CapHeight(spec.Ceiling)
+			}
+		}
+	}
 	results := make([]sim.Result, viewers)
 	found := make([][]finding.Finding, viewers)
 	errs := make([]error, viewers)
@@ -187,13 +258,13 @@ func Run(l manifest.Ladder, base trace.Trace, algName string, opts sim.Options, 
 				// estimates and buffer state, so a shared one would make
 				// viewer 7 depend on viewer 6.
 				alg, _ := abr.New(algName)
-				res, err := sim.Run(l, traces[v], alg, opts)
+				res, err := sim.Run(ladders[v], traces[v], alg, opts)
 				if err != nil {
 					errs[v] = err
 					continue
 				}
 				results[v] = res
-				found[v] = analyze.Run(res, traces[v], l)
+				found[v] = analyze.Run(res, traces[v], ladders[v])
 			}
 		}()
 	}
@@ -214,10 +285,10 @@ func Run(l manifest.Ladder, base trace.Trace, algName string, opts sim.Options, 
 		return Report{}, errors.New("no viewers were simulated")
 	}
 
-	return summarise(l, base, algName, results, found), nil
+	return summarise(l, base, algName, results, found, mix, devices), nil
 }
 
-func summarise(l manifest.Ladder, base trace.Trace, algName string, results []sim.Result, found [][]finding.Finding) Report {
+func summarise(l manifest.Ladder, base trace.Trace, algName string, results []sim.Result, found [][]finding.Finding, mix device.Mix, devices []string) Report {
 	rep := Report{
 		Viewers:   len(results),
 		Trace:     base.Name,
@@ -228,6 +299,20 @@ func summarise(l manifest.Ladder, base trace.Trace, algName string, results []si
 		rep.Segments = len(l.Renditions[0].Segments)
 	}
 
+	weights := analyze.DefaultQoEWeights()
+	rep.QoEWeights = weights
+	qoe := make([]float64, 0, len(results))
+	egress := make([]float64, 0, len(results))
+	// Keyed by the *full* ladder: with a device mix two viewers have different
+	// ladders, so rung 2 of one is not rung 2 of another. Indexing by position
+	// would attribute a television's 1080p seconds to a phone's top rung.
+	full := l.Rungs()
+	rungs := make([]RungUse, len(full))
+	at := make(map[string]int, len(full))
+	for i, r := range full {
+		rungs[i] = RungUse{Rung: i, Name: r.Name, Bitrate: r.Bandwidth}
+		at[r.Name] = i
+	}
 	startup := make([]float64, len(results))
 	frozen := make([]float64, len(results))
 	stalls := make([]float64, len(results))
@@ -247,6 +332,31 @@ func summarise(l manifest.Ladder, base trace.Trace, algName string, results []si
 		stalls[v], switches[v] = float64(res.Stalls), rate
 		delivered[v] = res.DeliveredBitrate()
 
+		score, scored := analyze.QoE(res, weights)
+		if scored {
+			qoe = append(qoe, score)
+		}
+		if e, ok := res.BytesPerViewerHour(); ok {
+			egress = append(egress, e)
+		}
+		// Attribution is summed across the audience rather than averaged: the
+		// question is how much playback a rung served, and a mean of shares
+		// would weight a viewer who watched ten seconds like one who watched an
+		// hour.
+		for _, u := range res.RungUse() {
+			i, ok := at[u.Name]
+			if !ok {
+				continue // a rung this run had and the ladder does not: not ours to attribute
+			}
+			r := &rungs[i]
+			r.Segments += u.Segments
+			r.Seconds += u.Seconds
+			r.Bytes += u.Bytes
+			if u.Segments > 0 {
+				r.Viewers++
+			}
+		}
+
 		if res.Estimated {
 			rep.Estimated = true
 		}
@@ -254,11 +364,16 @@ func summarise(l manifest.Ladder, base trace.Trace, algName string, results []si
 			rep.Incomplete++
 		}
 
+		class := ""
+		if v < len(devices) {
+			class = devices[v]
+		}
 		rep.Runs[v] = Viewer{
-			Index: v, Startup: res.Startup, Frozen: res.StallTime,
+			Index: v, Device: class, Startup: res.Startup, Frozen: res.StallTime,
 			Stalls: res.Stalls, Switches: res.Switches,
 			Media: res.Media, Wall: res.Wall, Bytes: res.Bytes,
-			Delivered: delivered[v], Worst: finding.Worst(found[v]),
+			Delivered: delivered[v], QoE: score,
+			Worst: finding.Worst(found[v]),
 		}
 
 		for _, f := range found[v] {
@@ -303,6 +418,48 @@ func summarise(l manifest.Ladder, base trace.Trace, algName string, results []si
 			case f.Status == s.Worst && f.Status != finding.OK && worse(f, s):
 				keepWorst(s, f, v)
 			}
+		}
+	}
+
+	// Shares over the audience's whole playback, and each rung's egress per hour
+	// of watching — the same arithmetic as one session, one level up.
+	var media float64
+	for _, res := range results {
+		media += res.Media
+	}
+	for i := range rungs {
+		if media > 0 {
+			rungs[i].Share = rungs[i].Seconds / media
+			rungs[i].PerViewerHour = float64(rungs[i].Bytes) * 3600 / media
+		}
+	}
+	rep.Rungs = rungs
+	rep.Egress = statOf(egress)
+	rep.QoE = statOf(qoe)
+
+	// The audience split by screen, ordered by the mix as it was given rather than
+	// by however a map iterates: two runs must produce the same bytes.
+	if len(mix.Shares) > 0 {
+		rep.DeviceMix = mix.String()
+		for _, share := range mix.Shares {
+			spec, _ := device.Class(share.Name)
+			d := DeviceSpread{Name: share.Name, Ceiling: spec.Ceiling}
+			var fr, qo, eg []float64
+			for v, res := range results {
+				if v >= len(devices) || devices[v] != share.Name {
+					continue
+				}
+				d.Viewers++
+				fr = append(fr, res.StallTime)
+				if score, ok := analyze.QoE(res, weights); ok {
+					qo = append(qo, score)
+				}
+				if e, ok := res.BytesPerViewerHour(); ok {
+					eg = append(eg, e)
+				}
+			}
+			d.Frozen, d.QoE, d.Egress = statOf(fr), statOf(qo), statOf(eg)
+			rep.Devices = append(rep.Devices, d)
 		}
 	}
 

@@ -706,6 +706,8 @@ footer p { max-width: 74ch; }
   --play DUR             stop after this much media; 0 plays it all (default 0)
   --viewers N            simulate N people on variations of the same network and
                          report the spread instead of one session (default 1)
+  --devices MIX          the screens that audience watches on, as
+                         phone:50,tv:30,desktop:20 — shares must add up to 100
   --header 'K: V'        sent on every request; repeatable
   --timeout DUR          per-request timeout (default 30s)
   --json                 the full report, per-request timeline included
@@ -827,6 +829,34 @@ delivered            1.38       1.55       1.64       1.64       1.64
       <div class="card"><h4>The gate reads the tail</h4><p><code>--exit-on</code> judges the whole audience. One that read only the median viewer would pass a ladder that freezes for one person in twenty.</p></div>
       <div class="card"><h4>Stated, not hidden</h4><p>A viewer's scale depends on how many viewers there are, so viewer 5 of 30 is not viewer 5 of 200. And the population <code>--json</code> carries the distribution plus a per-viewer summary, never two hundred request timelines.</p></div>
     </div>
+    <h3>What each rung earned, and what it cost</h3>
+    <p>
+      <code>ladder-gap</code> names a hole. These name the rungs that <em>do</em>
+      exist and what they were worth — the other half of the same argument.
+    </p>
+    <div class="term">
+      <div class="bar"><span class="dot"></span>fifty viewers, sixty per cent of them on a phone</div>
+      <div class="body">
+<pre>rung            bitrate     served      share    viewers        GiB/h
+360p               0.6M       499s         5%         50         0.01
+540p               0.9M      1238s        12%         50         0.04
+720p               1.0M      5647s        54%         50         0.22
+1080p              1.9M      3093s        30%         20         0.22
+<span class="hint">1 rungs served nothing at all: 234p — they cost encoding, storage and egress and bought no viewer anything on this trace</span>
+
+screen      ceiling  viewers   frozen p50    qoe p50    GiB/h p50
+phone          720p       30         0.0s       1.00         0.39
+tv           no cap       20         1.0s       1.63         0.64
+<span class="hint">the mix `phone:60,tv:40` is what you asked for, not what abrsim guessed</span></pre>
+      </div>
+    </div>
+    <div class="grid">
+      <div class="card"><h4>Rung attribution</h4><p>Seconds of the audience's playback each rung served, its share, how many viewers ever chose it. A rung nothing selected is <strong>named</strong> rather than dropped — it is exactly the one somebody is deciding about.</p></div>
+      <div class="card"><h4>The units of a delivery bill</h4><p>Bytes per viewer-hour, from the bytes that really crossed the wire. Dropping a rung becomes a number in <strong>both</strong> directions. No severity: what a gigabyte is worth is a commercial question.</p></div>
+      <div class="card"><h4>The screen is part of the ladder</h4><p><code>--devices phone:60,tv:40</code> — a screen does not fetch a rung it cannot show. Above, the phone half froze for nothing and cost 0.39 GiB an hour; the televisions froze a second and cost 0.64.</p></div>
+      <div class="card"><h4>A score with its weights beside it</h4><p>The literature's linear QoE in Mbps-equivalent: a 2.4 is worth a steady 2.4 Mbps with no stalls and no switching. The weights print with the score, and no severity is attached until our numbers are validated against published results.</p></div>
+    </div>
+
     <div class="callout">
       <p>
         <strong>Every figure is a viewer that existed.</strong> The percentiles are
@@ -858,7 +888,7 @@ delivered            1.38       1.55       1.64       1.64       1.64
       <li><strong>A live edge</strong> — VOD semantics only; the buffer fills as fast as the line allows.</li>
       <li><strong>The startup rule a real player applies before BOLA</strong> — dash.js runs a throughput rule until playback is established, so the rung the first segment is fetched at is BOLA’s rather than a shipped player’s.</li>
       <li><strong>DASH</strong> — HLS for now.</li>
-      <li><strong>The device</strong> — the audience varies in bandwidth and nothing else. Two viewers still share a screen, and a phone cannot see the difference between the 1080p rung and the 720p one, so “the top rung served 40% of playback” overstates what that rung buys. Next in the milestone below, with rung attribution and the egress a ladder costs.</li>
+      <li><strong>Who the audience is</strong> — <code>--devices</code> takes a mix of screens, but abrsim will not invent one: with none stated, no screen is assumed. The population also varies in bandwidth alone — everyone starts at the same instant and watches the same asset to the end.</li>
     </ul>
     <p>
       And unless you pass <code>--sizes measured</code>, a segment with no declared
@@ -878,7 +908,7 @@ delivered            1.38       1.55       1.64       1.64       1.64
     <p class="kicker">Where it is going</p>
     <h2>Milestones</h2>
     <div class="grid">
-      <div class="card"><span class="tag">M6 · in flight</span><h4>The audience, not the session</h4><p><code>--viewers</code> shipped in 0.2.0 and the percentiles in 0.3.0. Next: what each rung actually served, the egress that ladder costs per viewer-hour, the device ceiling, and a QoE score with its weights printed beside it.</p></div>
+      <div class="card"><span class="tag">M6 · shipped</span><h4>The audience, not the session</h4><p>Complete in 0.4.0: a deterministic viewer population, percentiles with the p95 first, rung attribution, the egress a ladder costs per viewer-hour, the screen as part of the ladder, and a QoE score with its weights printed beside it.</p></div>
       <div class="card"><span class="tag">M2</span><h4>Faithfulness</h4><p>DASH input, request latency, audio on the same pipe, a live edge, and validation against published ABR results.</p></div>
       <div class="card"><span class="tag">M3</span><h4>Comparison and CI</h4><p>Sweeps across every trace and algorithm, two ladders compared, budgets as checked-in config.</p></div>
       <div class="card"><span class="tag">M4</span><h4>Integration</h4><p>Segment sizes from a segcheck report, the missing rung proposed with its cost, a GitHub Action.</p></div>

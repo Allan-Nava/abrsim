@@ -6,32 +6,32 @@
 > of truth for planned work. Regenerate it with `scripts/backlog.sh roadmap`
 > after editing the backlog — CI fails when the two disagree.
 
-**52 items · 19 shipped · 33 open · 7 milestones.**
+**52 items · 23 shipped · 29 open · 7 milestones.**
 
 ## At a glance
 
 | Milestone | Target | Phase | Progress | Open | Shipped |
 |---|---|---|---|---|---|
 | **M1** — The deterministic core | `v0.1.0` | shipped | `##########` 100% | 0 | 13 |
-| **M2** — Faithfulness | `v0.4.0` | next | `..........` 0% | 11 | 0 |
-| **M3** — Comparison and CI | `v0.5.0` | later | `..........` 0% | 4 | 0 |
-| **M4** — Integration | `v0.6.0` | later | `..........` 0% | 4 | 0 |
-| **M6** — The audience, not the session | `v0.3.0` | **now** | `###.......` 33% | 4 | 2 |
-| **M7** — A ladder you can defend | `v0.7.0` | later | `..........` 0% | 6 | 0 |
+| **M2** — Faithfulness | `v0.5.0` | **now** | `..........` 0% | 11 | 0 |
+| **M3** — Comparison and CI | `v0.6.0` | later | `..........` 0% | 4 | 0 |
+| **M4** — Integration | `v0.7.0` | later | `..........` 0% | 4 | 0 |
+| **M6** — The audience, not the session | `v0.4.0` | shipped | `##########` 100% | 0 | 6 |
+| **M7** — A ladder you can defend | `v0.8.0` | later | `..........` 0% | 6 | 0 |
 | **M5** — Project and release | `ongoing` | ongoing | `#####.....` 50% | 4 | 4 |
 
 ## Next up
 
 The open items with the highest priority in the milestones that are in flight.
 
-- **AB-13** — DASH input · `high` · size `L` · manifest (M2, target `v0.4.0`)
-- **AB-14** — Request latency · `high` · size `M` · sim,delivery (M2, target `v0.4.0`)
-- **AB-15** — Audio shares the pipe · `high` · size `M` · sim (M2, target `v0.4.0`)
-- **AB-16** — Validation against published results · `high` · size `L` · tests,abr (M2, target `v0.4.0`)
+- **AB-13** — DASH input · `high` · size `L` · manifest (M2, target `v0.5.0`)
+- **AB-14** — Request latency · `high` · size `M` · sim,delivery (M2, target `v0.5.0`)
+- **AB-15** — Audio shares the pipe · `high` · size `M` · sim (M2, target `v0.5.0`)
+- **AB-16** — Validation against published results · `high` · size `L` · tests,abr (M2, target `v0.5.0`)
 - **AB-29** — CI gates · `high` · size `M` · project,tests (M5, target `ongoing`)
-- **AB-32** — A rung the line can only just carry is not a rung · `high` · size `S` · check (M2, target `v0.4.0`)
-- **AB-34** — Give `efficiency` an opinion it can defend · `high` · size `M` · check (M2, target `v0.4.0`)
-- **AB-35** — The startup rule a player applies before BOLA · `high` · size `M` · abr (M2, target `v0.4.0`)
+- **AB-32** — A rung the line can only just carry is not a rung · `high` · size `S` · check (M2, target `v0.5.0`)
+- **AB-34** — Give `efficiency` an opinion it can defend · `high` · size `M` · check (M2, target `v0.5.0`)
+- **AB-35** — The startup rule a player applies before BOLA · `high` · size `M` · abr (M2, target `v0.5.0`)
 
 ## Milestones
 
@@ -57,7 +57,7 @@ Target `v0.1.0` · shipped · 0 open · 13 shipped · `##########` 100%
 
 ### M2 — Faithfulness
 
-Target `v0.4.0` · next · 11 open · 0 shipped · `..........` 0%
+Target `v0.5.0` · **now** · 11 open · 0 shipped · `..........` 0%
 
 | Item | Priority | Size | Labels | Status |
 |---|---|---|---|---|
@@ -75,7 +75,7 @@ Target `v0.4.0` · next · 11 open · 0 shipped · `..........` 0%
 
 ### M3 — Comparison and CI
 
-Target `v0.5.0` · later · 4 open · 0 shipped · `..........` 0%
+Target `v0.6.0` · later · 4 open · 0 shipped · `..........` 0%
 
 | Item | Priority | Size | Labels | Status |
 |---|---|---|---|---|
@@ -86,7 +86,7 @@ Target `v0.5.0` · later · 4 open · 0 shipped · `..........` 0%
 
 ### M4 — Integration
 
-Target `v0.6.0` · later · 4 open · 0 shipped · `..........` 0%
+Target `v0.7.0` · later · 4 open · 0 shipped · `..........` 0%
 
 | Item | Priority | Size | Labels | Status |
 |---|---|---|---|---|
@@ -97,20 +97,20 @@ Target `v0.6.0` · later · 4 open · 0 shipped · `..........` 0%
 
 ### M6 — The audience, not the session
 
-Target `v0.3.0` · **now** · 4 open · 2 shipped · `###.......` 33%
+Target `v0.4.0` · shipped · 0 open · 6 shipped · `##########` 100%
 
 | Item | Priority | Size | Labels | Status |
 |---|---|---|---|---|
-| **AB-38** — Rung attribution | high | M | check,output | open |
-| **AB-39** — What the ladder costs to ship | med | M | check,delivery | open |
-| **AB-40** — The screen is part of the ladder | med | M | sim,cli | open |
-| **AB-41** — QoE as one number, with its weights printed next to it | med | M | check,abr | open |
 | **AB-36** — A population, not a viewer | high | L | sim,trace,cli | shipped `0.2.0` |
 | **AB-37** — The p95 first, and the mean nowhere | high | M | check,output | shipped `0.3.0` |
+| **AB-38** — Rung attribution | high | M | check,output | shipped `0.4.0` |
+| **AB-39** — What the ladder costs to ship | med | M | check,delivery | shipped `0.4.0` |
+| **AB-40** — The screen is part of the ladder | med | M | sim,cli | shipped `0.4.0` |
+| **AB-41** — QoE as one number, with its weights printed next to it | med | M | check,abr | shipped `0.4.0` |
 
 ### M7 — A ladder you can defend
 
-Target `v0.7.0` · later · 6 open · 0 shipped · `..........` 0%
+Target `v0.8.0` · later · 6 open · 0 shipped · `..........` 0%
 
 | Item | Priority | Size | Labels | Status |
 |---|---|---|---|---|
@@ -140,12 +140,12 @@ Target `ongoing` · ongoing · 4 open · 4 shipped · `#####.....` 50%
 
 | Label | Items | Open |
 |---|---|---|
-| `check` | 15 | 12 |
-| `output` | 10 | 8 |
-| `cli` | 8 | 6 |
-| `abr` | 8 | 5 |
-| `delivery` | 6 | 5 |
-| `sim` | 7 | 5 |
+| `check` | 15 | 9 |
+| `output` | 10 | 7 |
+| `cli` | 8 | 5 |
+| `abr` | 8 | 4 |
+| `delivery` | 6 | 4 |
+| `sim` | 7 | 4 |
 | `integration` | 3 | 3 |
 | `tests` | 4 | 3 |
 | `release` | 4 | 2 |

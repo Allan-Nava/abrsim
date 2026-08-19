@@ -14,6 +14,7 @@ import (
 
 	"github.com/Allan-Nava/abrsim/internal/abr"
 	"github.com/Allan-Nava/abrsim/internal/analyze"
+	"github.com/Allan-Nava/abrsim/internal/device"
 	"github.com/Allan-Nava/abrsim/internal/finding"
 	"github.com/Allan-Nava/abrsim/internal/manifest"
 	"github.com/Allan-Nava/abrsim/internal/output"
@@ -73,6 +74,10 @@ Flags for `+"`run`"+`:
   --play DUR             stop after this much media; 0 plays the whole asset (default 0)
   --viewers N            simulate N people on variations of the same network and
                          report the spread instead of one session (default 1)
+  --devices MIX          the screens that audience watches on, as
+                         phone:50,tv:30,desktop:20 — the shares must add up to
+                         100. A screen does not fetch a rung it cannot show, and
+                         stating nothing means exactly that: no screen assumed
   --header 'K: V'        sent on every request; repeatable. Credentials go here,
                          never in a flag value that lands in shell history
   --timeout DUR          per-request timeout (default 30s)
@@ -143,6 +148,7 @@ func cmdRun(args []string, stdout, stderr io.Writer) int {
 		cap_      = fs.Duration("buffer-cap", 30*time.Second, "")
 		play      = fs.Duration("play", 0, "")
 		viewers   = fs.Int("viewers", 1, "")
+		devices   = fs.String("devices", "", "")
 		timeout   = fs.Duration("timeout", 30*time.Second, "")
 		asJSON    = fs.Bool("json", false, "")
 		noColour  = fs.Bool("no-color", false, "")
@@ -185,6 +191,19 @@ func cmdRun(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "abrsim: --sizes is declared or measured, not %q\n", *sizes)
 		return 2
 	}
+	mix := device.Mix{}
+	if *devices != "" {
+		if *viewers < 2 {
+			fmt.Fprintln(stderr, "abrsim: --devices describes an audience, so it needs --viewers as well")
+			return 2
+		}
+		m, err := device.Parse(*devices)
+		if err != nil {
+			fmt.Fprintf(stderr, "abrsim: --devices: %v\n", err)
+			return 2
+		}
+		mix = m
+	}
 	if *viewers < 1 {
 		fmt.Fprintf(stderr, "abrsim: --viewers is how many people watch, so at least 1, not %d\n", *viewers)
 		return 2
@@ -219,7 +238,7 @@ func cmdRun(args []string, stdout, stderr io.Writer) int {
 	// to the single-run path below: one viewer is the trace as measured, and its
 	// report is the one this tool has always printed, timeline included.
 	if *viewers > 1 {
-		pop, err := population.Run(ladder, tr, alg.Name(), simOpts, *viewers)
+		pop, err := population.RunWith(ladder, tr, alg.Name(), simOpts, *viewers, mix)
 		if err != nil {
 			fmt.Fprintf(stderr, "abrsim: %v\n", err)
 			return 1
@@ -235,6 +254,7 @@ func cmdRun(args []string, stdout, stderr io.Writer) int {
 				"startup_buffer": startup.Seconds(),
 				"buffer_cap":     cap_.Seconds(),
 				"viewers":        *viewers,
+				"devices":        mix.String(),
 			},
 		}
 		if *asJSON {

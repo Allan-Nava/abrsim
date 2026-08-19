@@ -145,6 +145,8 @@ abrsim run <master.m3u8> [flags]
   --play DUR             stop after this much media; 0 plays it all (default 0)
   --viewers N            simulate N people on variations of the same network and
                          report the spread instead of one session (default 1)
+  --devices MIX          the screens that audience watches on, as
+                         phone:50,tv:30,desktop:20 — shares must add up to 100
   --header 'K: V'        sent on every request; repeatable
   --timeout DUR          per-request timeout (default 30s)
   --json                 the full report, per-request timeline included
@@ -202,6 +204,46 @@ this audience the picture is frozen for a minute of the three and a half.
   would pass a ladder that freezes for one person in twenty.
 - `--json` carries the distribution and a per-viewer summary, **not** two hundred
   request timelines. Run a single viewer for the full one.
+
+### What each rung earned, and what it cost
+
+`ladder-gap` names a hole. These name the rungs that *do* exist and what they were
+worth — the other half of the same argument:
+
+```
+rung            bitrate     served      share    viewers        GiB/h
+360p               0.6M       499s         5%         50         0.01
+540p               0.9M      1238s        12%         50         0.04
+720p               1.0M      5647s        54%         50         0.22
+1080p              1.9M      3093s        30%         20         0.22
+1 rungs served nothing at all: 234p — they cost encoding, storage and egress and
+bought no viewer anything on this trace (--json lists every rung)
+
+screen      ceiling  viewers   frozen p50    qoe p50    GiB/h p50
+phone          720p       30         0.0s       1.00         0.39
+tv           no cap       20         1.0s       1.63         0.64
+```
+
+- **Rung attribution**: seconds of the audience's playback each rung served, its
+  share, how many viewers ever chose it, and the egress it costs per viewer-hour.
+  A rung nothing selected is named rather than dropped from the table — it is
+  exactly the one somebody is deciding about.
+- **Cost, in the units of a delivery bill**: bytes per viewer-hour, from the bytes
+  that really crossed the wire. Paired with the attribution it makes dropping a
+  rung a number in **both** directions. No severity: what a gigabyte is worth is a
+  commercial question and abrsim does not know the contract.
+- **`--devices phone:60,tv:40`**: a screen does not fetch a rung it cannot show, so
+  a phone half of the audience neither needs nor pays for the top rung. Above, the
+  phones froze for nothing and cost 0.39 GiB an hour; the televisions froze a
+  second and cost 0.64. The mix is **an input and never a guess** — with no
+  `--devices` no screen is assumed, and the shares have to add up to 100 rather
+  than being quietly normalised.
+- **A QoE score, with its weights printed next to it**: the linear QoE the
+  published ABR literature optimises against, in Mbps-equivalent — a 2.4 means the
+  session was worth as much as watching a steady 2.4 Mbps with no stalls and no
+  switching. The weights (4.3 per frozen second, 1.0 per Mbps switched) are the
+  literature's, they print with the score, and no severity is attached to it until
+  [AB-16](BACKLOG.md) shows our numbers land where the papers' do.
 
 ### The percentiles, and where they stop
 
