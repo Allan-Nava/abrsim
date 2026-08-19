@@ -7,6 +7,31 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [0.3.1] — 2026-08-19
+
+`release.sh` was the one script CI never ran (AB-52 follow-up). Its gate list and
+`ci.yml`'s steps agreed by coincidence, maintained by hand.
+
+### Added
+
+- **`scripts/release.sh gates`** — the single definition of what the ritual
+  verifies, one row per gate as `id / where / pattern`: `ci` for a gate the
+  pipeline must run too, `tag` for one that only means anything at a tag (the
+  changelog being written, the smoke test against real streams).
+- **`release_test.sh` compares that list against `.github/workflows/ci.yml` in both
+  directions**: a gate in the ritual that CI does not run fails, and a script
+  invocation in CI that the ritual does not declare fails too. It also proves the
+  comparison fires, by running itself against a workflow with one gate stripped out
+  — guarded against recursion, because the first version of that check re-ran the
+  whole file including itself and had to be killed.
+- **`release.yml` now runs `scripts/release.sh check` on a pushed tag**, as its own
+  job before goreleaser. `ci.yml` keeps the gates as separate steps — a failing step
+  names itself in the Actions UI — but what ships is now verified by the script that
+  claims to verify it, in the environment it ships from.
+- **The ritual gained the two gates CI had and it did not**: the zero-dependency
+  check (`go.mod` has no require block, `go.sum` stays empty) and `govulncheck`.
+  Which is exactly the drift the comparison is there to catch, found by writing it.
+
 ## [0.3.0] — 2026-08-19
 
 **The p95, before anything else** (AB-37) — the second item of M6. A population
@@ -537,7 +562,8 @@ no judgement (AB-34) — both attempts at a severity fired on healthy reference
 streams, and a measurement with an honest "no opinion" is worth more than a
 severity that cries wolf.
 
-[Unreleased]: https://github.com/Allan-Nava/abrsim/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/Allan-Nava/abrsim/compare/v0.3.1...HEAD
+[0.3.1]: https://github.com/Allan-Nava/abrsim/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/Allan-Nava/abrsim/compare/v0.2.2...v0.3.0
 [0.2.2]: https://github.com/Allan-Nava/abrsim/compare/v0.2.1...v0.2.2
 [0.2.1]: https://github.com/Allan-Nava/abrsim/compare/v0.2.0...v0.2.1

@@ -296,6 +296,15 @@ promised to be stable forever, none of which a reviewer would catch.
 | `prepare <patch\|minor\|X.Y.Z>` | scaffold that section and **both** of its compare links |
 | `check` | every gate below in one command, no writes |
 | `tag [--commit <msgfile>]` | verify, optionally commit, then tag. Never pushes |
+| `gates` | the gate list as `id / where / pattern` — the single definition of what the ritual verifies |
+
+**Where the gates run.** `ci.yml` runs them as separate steps, because a failing
+step names itself in the Actions UI; `release.yml` runs `release.sh check` itself on
+a pushed tag, so what ships is what the script says it verified; and
+`release_test.sh` compares `release.sh gates` against `ci.yml` **in both
+directions**, so a gate added to one and not the other fails the build. Before that
+comparison existed the two lists agreed by coincidence, maintained by hand — the
+same drift `docs.sh` was written to stop for the documentation.
 
 `scripts/release_test.sh` covers the version arithmetic and the changelog surgery
 against fixtures, because those are the parts that can ship a tag whose notes

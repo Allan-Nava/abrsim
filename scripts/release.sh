@@ -14,6 +14,9 @@
 #                                                 compare links
 #   scripts/release.sh check                      every gate the ritual runs, no writes
 #   scripts/release.sh tag [--commit <msgfile>]   verify, optionally commit, then tag
+#   scripts/release.sh gates                      the gate list, as id/where/pattern —
+#                                                 release_test.sh asserts ci.yml runs
+#                                                 every row of it, in both directions
 #
 # It never pushes. Pushing is the maintainer's call and is what publishes the
 # archives and the Homebrew cask, so a tag is cheap locally and consequential
@@ -153,6 +156,31 @@ prepare_cmd() {
 	echo "prepared [$v] in $(basename "$changelog") — write the entries, then: scripts/release.sh tag"
 }
 
+# gates is the single definition of what "the ritual" means: one row per gate, as
+# `id <TAB> where <TAB> pattern`. `where` is ci for a gate the pipeline has to run
+# too, tag for one that only makes sense at a tag; `pattern` is the literal text
+# release_test.sh looks for in .github/workflows/ci.yml.
+#
+# It exists because ci.yml and this script enforced the same list by coincidence,
+# maintained by hand. A gate added to one was invisible to the other, which is the
+# exact drift docs.sh was written to stop for the documentation.
+gates_cmd() {
+	printf '%s\t%s\t%s\n' \
+		backlog-lint      ci  './scripts/backlog.sh lint' \
+		backlog-staleness ci  './scripts/backlog.sh check' \
+		backlog-tooling   ci  'sh ./scripts/backlog_test.sh' \
+		release-tooling   ci  'sh ./scripts/release_test.sh' \
+		docs              ci  './scripts/docs.sh check' \
+		goreleaser-config ci  'args: check' \
+		gofmt             ci  'gofmt -l ./cmd ./internal' \
+		vet               ci  'go vet ./...' \
+		test-race         ci  'go test -race' \
+		zero-deps         ci  'go.sum is not empty' \
+		vulns             ci  'govulncheck ./...' \
+		changelog         tag '-' \
+		smoke             tag 'TestSmokeReferenceStreams'
+}
+
 check_cmd() {
 	echo "== backlog =="
 	"$root/scripts/backlog.sh" lint
@@ -167,6 +195,16 @@ check_cmd() {
 		goreleaser check
 	else
 		echo "goreleaser not installed locally — CI checks it on every commit"
+	fi
+	echo "== zero dependencies =="
+	grep -q '^require' "$root/go.mod" && die "go.mod grew a require block"
+	[ -s "$root/go.sum" ] && die "go.sum is not empty"
+	echo "no dependencies"
+	echo "== vulnerabilities =="
+	if command -v govulncheck >/dev/null 2>&1; then
+		(cd "$root" && govulncheck ./...) >/dev/null && echo "govulncheck ./... clean"
+	else
+		echo "govulncheck not installed locally — CI runs it on every commit"
 	fi
 	echo "== go =="
 	out=$(cd "$root" && gofmt -l ./cmd ./internal)
@@ -216,6 +254,7 @@ tag_cmd() {
 }
 
 case "${1:-}" in
+gates)     gates_cmd ;;
 next)      shift; next_version "${1:-}" ;;
 changelog) changelog_cmd ;;
 prepare)   shift; prepare_cmd "${1:-}" ;;
@@ -223,6 +262,7 @@ check)     check_cmd ;;
 tag)       shift; tag_cmd "$@" ;;
 *)
 	echo "usage: scripts/release.sh next <patch|minor|X.Y.Z>" >&2
+	echo "       scripts/release.sh gates" >&2
 	echo "       scripts/release.sh changelog" >&2
 	echo "       scripts/release.sh prepare <patch|minor|X.Y.Z>" >&2
 	echo "       scripts/release.sh check" >&2

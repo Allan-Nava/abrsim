@@ -132,6 +132,66 @@ else
 	echo "ok   a refused prepare left the changelog alone"
 fi
 
+echo "== gates =="
+# release.sh check and ci.yml enforce the same list, and until now that was a
+# coincidence maintained by hand: a gate added to one was invisible to the other.
+# `gates` is the single definition, and this asserts CI actually runs every row of
+# it — in both directions, so a gate added to the workflow and not to the ritual
+# fails too.
+ci="${RELEASE_CI_FILE:-$root/.github/workflows/ci.yml}"
+checks=$((checks + 1))
+if [ -s "$ci" ]; then
+	echo "ok   ci.yml is where it is expected to be"
+else
+	fail "no ci.yml at $ci"
+fi
+
+"$script" gates >"$tmp/gates.tsv" 2>"$tmp/gates.err" || fail "gates failed: $(cat "$tmp/gates.err")"
+checks=$((checks + 1))
+if [ -s "$tmp/gates.tsv" ]; then
+	echo "ok   gates lists something"
+else
+	fail "gates printed nothing"
+fi
+
+while IFS='	' read -r id where pattern; do
+	[ "$where" = "ci" ] || continue
+	checks=$((checks + 1))
+	if grep -qF -- "$pattern" "$ci"; then
+		echo "ok   ci.yml runs the $id gate"
+	else
+		fail "the $id gate is in the ritual and not in ci.yml — expected to find: $pattern"
+	fi
+done <"$tmp/gates.tsv"
+
+# The other direction: every script ci.yml invokes has to be a declared gate,
+# or the ritual is quietly weaker than the pipeline.
+grep -oE '(\./|sh \./)scripts/[a-z_]+\.sh [a-z]*' "$ci" | sed 's/^sh //' | sort -u >"$tmp/ci-scripts.txt"
+while read -r invocation; do
+	[ -n "$invocation" ] || continue
+	checks=$((checks + 1))
+	if grep -qF -- "$invocation" "$tmp/gates.tsv"; then
+		echo "ok   the ritual knows about \`$invocation\`"
+	else
+		fail "ci.yml runs \`$invocation\` and release.sh gates does not list it"
+	fi
+done <"$tmp/ci-scripts.txt"
+
+# And prove the gate fires: a workflow missing one of the rows has to fail the
+# comparison, or the whole thing is decoration. The nested run is guarded — the
+# first attempt at this test re-ran the whole file, self-check included, and
+# recursed until it was killed.
+if [ -z "${RELEASE_TEST_NESTED:-}" ]; then
+	echo "== the drift gate itself =="
+	grep -v 'docs.sh check' "$ci" >"$tmp/ci-missing-docs.yml"
+	checks=$((checks + 1))
+	if RELEASE_TEST_NESTED=1 RELEASE_CI_FILE="$tmp/ci-missing-docs.yml" sh "$root/scripts/release_test.sh" >/dev/null 2>&1; then
+		fail "a ci.yml with the docs gate removed still passed"
+	else
+		echo "ok   a ci.yml missing a declared gate fails"
+	fi
+fi
+
 echo
 if [ "$failures" -gt 0 ]; then
 	echo "release_test.sh: $failures of $checks checks failed" >&2

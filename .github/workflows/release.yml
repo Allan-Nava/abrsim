@@ -24,8 +24,30 @@ jobs:
           go build -o /tmp/abrsim ./cmd/abrsim
           ABRSIM_BIN=/tmp/abrsim go test -tags smoke -run TestSmokeReferenceStreams ./internal/analyze/ -v
 
+  # The ritual itself, not a re-implementation of it. ci.yml runs the same gates as
+  # separate steps because a failing step is easier to read in the Actions UI, and
+  # release_test.sh asserts the two lists agree — but at a tag it is `release.sh
+  # check` that runs, so what ships is what the script says it verified.
+  ritual:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+      # install-only: the ritual calls goreleaser check itself.
+      - uses: goreleaser/goreleaser-action@v7
+        with:
+          version: "~> v2"
+          install-only: true
+      - run: go install golang.org/x/vuln/cmd/govulncheck@latest
+      - name: scripts/release.sh check
+        run: ./scripts/release.sh check
+
   goreleaser:
-    needs: smoke
+    needs: [smoke, ritual]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7

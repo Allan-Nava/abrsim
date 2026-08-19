@@ -17,6 +17,11 @@ jobs:
         with:
           go-version-file: go.mod
 
+      # The gates below are the rows of `scripts/release.sh gates`, which is the
+      # single definition of what the release ritual verifies. They are separate
+      # steps here on purpose — a failing step names itself in the Actions UI —
+      # and release_test.sh fails the build if the two lists drift apart in
+      # either direction. At a tag, release.yml runs `release.sh check` itself.
       - name: gofmt
         run: |
           out=$(gofmt -l ./cmd ./internal)
