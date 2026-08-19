@@ -303,6 +303,16 @@ invent a measurement, one more axis.
   the tool. Found while adding it: the reverse flag check read `--cask` as an
   abrsim flag the CLI had lost, so it now ignores lines that invoke somebody
   else's program. <!-- ab: prio=high size=S labels=docs,release ver=0.1.3 -->
+- [ ] **AB-45 — The site's figures should be generated, not pasted**: the trace
+  charts on the Pages site are the built-in traces' own samples and the timeline
+  figure is the `--json` of a real run, which is why they are worth looking at —
+  and both were drawn by a script that is not in the repository, so a trace that
+  changes shape leaves a picture that quietly lies. `docs.sh` checks names, not
+  geometry. Either a committed generator (POSIX sh + awk, like the rest of
+  `scripts/`, reading a dump the binary can already produce) or `abrsim traces
+  --svg`. The commands that produced the current figures are in HTML comments
+  beside them, so the data is reproducible even before the generator exists.
+  <!-- ab: prio=med size=M labels=docs,output -->
 - [ ] **AB-43 — Signed archives and an SBOM**: cosign keyless over the checksum
   file and a syft SBOM per archive, so "zero dependencies" is something a consumer
   can verify instead of something the README asserts, and someone who did not

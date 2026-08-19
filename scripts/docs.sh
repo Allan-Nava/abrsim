@@ -78,6 +78,10 @@ page_flags() {
 		/brew |docker |git / { next }
 		{
 			s = $0
+			# `var(--bg)` is a custom property, and inline SVG carries them in
+			# plain attributes rather than inside <style> — skipping the style
+			# block is not enough on its own.
+			gsub(/var\(--[a-zA-Z0-9-]+\)/, "", s)
 			while (match(s, /--[a-z][a-z-]+/)) {
 				print substr(s, RSTART, RLENGTH)
 				s = substr(s, RSTART + RLENGTH)

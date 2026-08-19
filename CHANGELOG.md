@@ -7,6 +7,58 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [0.1.5] — 2026-08-19
+
+The Pages site, rebuilt: three times the page it was, and every picture on it
+drawn from real data rather than from a description of the data.
+
+### Added
+
+- **A timeline figure of an actual run** — the buffer sawtoothing against the
+  30-second cap, the bandwidth the cell carried underneath it, and the moment
+  just before 81 seconds where the collapse to 400 kbps empties the buffer
+  mid-download and freezes the picture for 0.7 seconds. Every coordinate comes
+  out of the `--json` timeline of
+  `--trace mobile-4g --abr throughput --play 300s` against Apple's public
+  `bipbop` stream, and the command is in an HTML comment beside the figure so
+  anyone can reproduce it.
+- **A card per built-in trace**, each chart drawn from that trace's own samples
+  as a **step function** — a trace is piecewise constant, and a smooth line would
+  show interpolation the model never performs. Each is scaled to its own peak
+  with a shared dashed line at 5 Mbps, so shapes are legible *and* comparable;
+  the earlier shared-scale sparklines made everything except `office-wifi`
+  unreadable noise.
+- **The detail the page was missing**: the anatomy of a finding (check, target,
+  value+unit, hint); a four-step diagram of what the tool actually does; the real
+  severity thresholds for every check (2s and 4s for `startup`, 0.1% and 1% of
+  playback for `rebuffer`, 4/min and 10/min for `switches`, ≥15% of playback and
+  1.8×/2.5× for `ladder-gap`, ≥25% extrapolation for `coverage`) rather than a
+  vague "turns loud eventually"; the `--json` document with its real field names;
+  a CI-gate snippet; a CSV example with the `k`/`M` suffixes; the BOLA
+  six-significant-figures story; and a seven-question FAQ.
+- **Install as three tabs** — cask, `go install`, prebuilt archive — with no
+  JavaScript: they are radio inputs, and the disclosures are `<details>`. The
+  page still fetches nothing from anywhere.
+
+### Fixed
+
+- **`docs.sh` read `var(--bg)` as a CLI flag.** Skipping the `<style>` block was
+  not enough once inline SVG started carrying custom properties in plain
+  attributes; the extractor now strips `var(--…)` wherever it appears. Third time
+  a `--word` on the page has not been ours — CSS variables, then `brew`'s
+  `--cask`, now custom properties in attributes — and each one was caught by
+  running the gate rather than by reading it.
+- **The gate also caught the traces losing their names**: moving them from a table
+  cell into a card heading dropped the `<code>` wrapper, so `docs.sh` correctly
+  reported that seven traces were no longer *named* on the page.
+
+### Known limitations
+
+The figures are generated from real data by a script that is **not** in the
+repository (AB-45), so a built-in trace that changes shape leaves a picture that
+quietly disagrees with it. `docs.sh` checks names, not geometry. The commands are
+recorded beside each figure until the generator lands.
+
 ## [0.1.4] — 2026-08-19
 
 CI has been red since this repository's first commit, and the cause was one line.
@@ -273,7 +325,8 @@ no judgement (AB-34) — both attempts at a severity fired on healthy reference
 streams, and a measurement with an honest "no opinion" is worth more than a
 severity that cries wolf.
 
-[Unreleased]: https://github.com/Allan-Nava/abrsim/compare/v0.1.4...HEAD
+[Unreleased]: https://github.com/Allan-Nava/abrsim/compare/v0.1.5...HEAD
+[0.1.5]: https://github.com/Allan-Nava/abrsim/compare/v0.1.4...v0.1.5
 [0.1.4]: https://github.com/Allan-Nava/abrsim/compare/v0.1.3...v0.1.4
 [0.1.3]: https://github.com/Allan-Nava/abrsim/compare/v0.1.2...v0.1.3
 [0.1.2]: https://github.com/Allan-Nava/abrsim/compare/v0.1.1...v0.1.2
