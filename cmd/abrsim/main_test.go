@@ -187,7 +187,7 @@ func TestRun_ViewersReportsTheSpreadAndNamesTheWorstViewer(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("exit %d, want 0\nstderr: %s", code, errs)
 	}
-	for _, want := range []string{"24 viewers", "steps-down", "median", "viewers ("} {
+	for _, want := range []string{"24 viewers", "steps-down", "p50", "p95", "viewers ("} {
 		if !strings.Contains(out, want) {
 			t.Errorf("no %q in:\n%s", want, out)
 		}

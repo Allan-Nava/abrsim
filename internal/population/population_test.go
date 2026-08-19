@@ -55,8 +55,11 @@ func TestRun_OneViewerIsTheRunThisToolAlwaysDid(t *testing.T) {
 		t.Errorf("one-viewer population = %+v, single simulation gave startup=%v frozen=%v stalls=%d switches=%d — --viewers 1 has to stay the run it always was",
 			got.Runs[0], want.Startup, want.StallTime, want.Stalls, want.Switches)
 	}
-	if got.Startup.Min != want.Startup || got.Startup.Median != want.Startup || got.Startup.Max != want.Startup {
-		t.Errorf("one viewer's distribution = %+v, want all three equal to %v", got.Startup, want.Startup)
+	if got.Startup.Min != want.Startup || got.Startup.P50 != want.Startup || got.Startup.Max != want.Startup {
+		t.Errorf("one viewer's distribution = %+v, want min, p50 and max all equal to %v", got.Startup, want.Startup)
+	}
+	if got.Startup.P95 != nil || got.Startup.P99 != nil {
+		t.Error("one viewer produced a p95 or a p99: one session is not a distribution")
 	}
 }
 
@@ -101,7 +104,7 @@ func TestRun_IsDeterministic(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Run: %v", err)
 	}
-	if a.Startup != b.Startup || a.Frozen != b.Frozen || a.Delivered != b.Delivered {
+	if !sameStat(a.Startup, b.Startup) || !sameStat(a.Frozen, b.Frozen) || !sameStat(a.Delivered, b.Delivered) {
 		t.Errorf("two runs of the same population disagree: %+v then %+v", a, b)
 	}
 	for i := range a.Checks {
@@ -168,7 +171,7 @@ func TestRun_WorstFirstAndTheCountThatMatters(t *testing.T) {
 	if reb.Worst != finding.BAD {
 		t.Errorf("rebuffer's worst status across the audience is %s, want BAD — somebody in here froze for a long time", reb.Worst)
 	}
-	if med := got.Frozen.Median; med != 0 {
+	if med := got.Frozen.P50; med != 0 {
 		t.Errorf("the median viewer froze for %.2fs: this fixture is meant to show a median that looks clean while the tail does not", med)
 	}
 	if got.Frozen.Max <= 0 {
@@ -191,25 +194,129 @@ func TestRun_RefusesAnEmptyAudienceAndAnUnknownAlgorithm(t *testing.T) {
 	}
 }
 
-func TestStat_MedianOfBothParities(t *testing.T) {
+func TestStat_EveryFigureIsAViewerThatExisted(t *testing.T) {
+	// Nearest-rank order statistics, no interpolation. An interpolated median of
+	// [1,2,3,4] is 2.5 — a number no viewer in that audience experienced — and
+	// inventing a measurement is the one thing this tool must not do.
 	cases := []struct {
-		in          []float64
-		lo, med, hi float64
+		in      []float64
+		lo, p50 float64
+		hi      float64
 	}{
 		{[]float64{5}, 5, 5, 5},
 		{[]float64{3, 1, 2}, 1, 2, 3},
-		{[]float64{4, 1, 3, 2}, 1, 2.5, 4},
+		{[]float64{4, 1, 3, 2}, 1, 2, 4},
 		{[]float64{2, 2, 2, 2}, 2, 2, 2},
 	}
 	for _, c := range cases {
 		got := statOf(c.in)
-		if got.Min != c.lo || got.Median != c.med || got.Max != c.hi {
-			t.Errorf("statOf(%v) = %+v, want min %v median %v max %v", c.in, got, c.lo, c.med, c.hi)
+		if got.Min != c.lo || got.P50 != c.p50 || got.Max != c.hi {
+			t.Errorf("statOf(%v) = min %v p50 %v max %v, want %v %v %v", c.in, got.Min, got.P50, got.Max, c.lo, c.p50, c.hi)
+		}
+		for _, v := range []float64{got.Min, got.P50, got.Max} {
+			found := false
+			for _, in := range c.in {
+				if in == v {
+					found = true
+				}
+			}
+			if !found {
+				t.Errorf("statOf(%v) reported %v, which no viewer had", c.in, v)
+			}
 		}
 	}
-	if got := statOf(nil); got != (Stat{}) {
-		t.Errorf("statOf(nil) = %+v, want the zero value", got)
+	if got := statOf(nil); got.Viewers != 0 || got.P95 != nil {
+		t.Errorf("statOf(nil) = %+v, want an empty stat with no percentiles", got)
 	}
+}
+
+func TestStat_APercentileTheAudienceCannotSupportIsNotReported(t *testing.T) {
+	// A p95 over ten viewers is the maximum wearing a better name: the tail has
+	// no resolution there. Twenty viewers is the first audience in which one
+	// viewer *is* the top 5%, and a hundred for the top 1%.
+	seq := func(n int) []float64 {
+		out := make([]float64, n)
+		for i := range out {
+			out[i] = float64(i)
+		}
+		return out
+	}
+	if got := statOf(seq(10)); got.P95 != nil || got.P99 != nil {
+		t.Errorf("ten viewers produced a p95/p99: %+v — that is a resolution the audience does not have", got)
+	}
+	got := statOf(seq(20))
+	if got.P95 == nil {
+		t.Fatal("twenty viewers should support a p95")
+	}
+	if *got.P95 != 18 {
+		t.Errorf("p95 of 0..19 = %v, want 18 (nearest rank: the 19th of twenty)", *got.P95)
+	}
+	if got.P99 != nil {
+		t.Errorf("twenty viewers produced a p99 of %v", *got.P99)
+	}
+	if got := statOf(seq(100)); got.P99 == nil || *got.P99 != 98 {
+		t.Errorf("p99 of 0..99 = %v, want 98", got.P99)
+	}
+}
+
+func TestRun_EachCheckCarriesItsSeverityAtThePercentiles(t *testing.T) {
+	// The point of AB-37: not "this went BAD somewhere" but "at the 95th
+	// percentile of your audience this is BAD", with the p50 beside it so a
+	// reader sees the median hiding the tail.
+	l, base := ladder(40), mustTrace(t, "steps-down")
+	got, err := Run(l, base, "bola", opts(), 40)
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	var reb CheckSpread
+	for _, c := range got.Checks {
+		if c.Check == "rebuffer" {
+			reb = c
+		}
+	}
+	if reb.AtP50 != finding.OK {
+		t.Errorf("rebuffer at p50 is %s, want OK — this fixture's median viewer is fine, which is the whole point", reb.AtP50)
+	}
+	if reb.AtP95 != finding.BAD {
+		t.Errorf("rebuffer at p95 is %s, want BAD", reb.AtP95)
+	}
+	if reb.AtP99 != "" {
+		t.Errorf("rebuffer reported a p99 (%s) with only 40 viewers", reb.AtP99)
+	}
+	if reb.Loud > 0 {
+		want := 100 * float64(reb.OK) / float64(got.Viewers)
+		if reb.FiresFrom < want-0.01 || reb.FiresFrom > want+0.01 {
+			t.Errorf("FiresFrom = %.1f, want %.1f (the share of the audience it stays quiet for)", reb.FiresFrom, want)
+		}
+	}
+}
+
+func TestRun_ChecksAreOrderedByWhatHappensAtTheP95(t *testing.T) {
+	l, base := ladder(40), mustTrace(t, "steps-down")
+	got, err := Run(l, base, "bola", opts(), 40)
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	for i := 1; i < len(got.Checks); i++ {
+		a, b := got.Checks[i-1], got.Checks[i]
+		if finding.Severity(a.AtP95) < finding.Severity(b.AtP95) {
+			t.Errorf("%s (p95 %s) comes before %s (p95 %s): worst first means worst at the percentile an operator is paid to care about",
+				a.Check, a.AtP95, b.Check, b.AtP95)
+		}
+	}
+}
+
+// sameStat compares two distributions including the percentiles a small audience
+// leaves unreported, which is why Stat cannot be compared with ==.
+func sameStat(a, b Stat) bool {
+	same := func(x, y *float64) bool {
+		if x == nil || y == nil {
+			return x == nil && y == nil
+		}
+		return *x == *y
+	}
+	return a.Min == b.Min && a.P50 == b.P50 && a.Max == b.Max &&
+		a.Viewers == b.Viewers && same(a.P95, b.P95) && same(a.P99, b.P99)
 }
 
 func mustTrace(t *testing.T, name string) trace.Trace {

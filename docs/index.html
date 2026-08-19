@@ -163,6 +163,7 @@ h3 { font-size: 1.06rem; margin: 30px 0 8px; }
 .term .body { padding: 14px 16px 16px; overflow-x: auto; }
 .term .cmd-l { color: var(--term-cmd); }
 .term .bad { color: var(--term-bad); }
+.term .warn { color: #fbbf24; }
 .term .ok { color: var(--term-ok); }
 .term .hint { color: var(--term-dim); }
 .caption { color: var(--fg-soft); font-size: 0.87rem; margin: 0 0 8px; }
@@ -780,7 +781,7 @@ footer p { max-width: 74ch; }
   </section>
 
   <section id="audience">
-    <p class="kicker">New in 0.2.0</p>
+    <p class="kicker">New in 0.3.0</p>
     <h2>An audience, not a viewer</h2>
     <p class="sub">
       One session over one trace is an anecdote — a true one, and still an
@@ -793,42 +794,52 @@ footer p { max-width: 74ch; }
     <div class="term">
       <div class="bar"><span class="dot"></span>a real run: Apple's reference stream, fifty viewers, one staircase down</div>
       <div class="body">
-<pre><span class="cmd-l">$ abrsim run https://cdn.example/master.m3u8 --trace steps-down --viewers 50</span>
+<pre><span class="cmd-l">$ abrsim run https://cdn.example/master.m3u8 --trace steps-down --viewers 200</span>
 
-50 viewers over `steps-down` with bola — the spread, not one session
+200 viewers over `steps-down` with bola — the spread, not one session
 
-<span class="bad">🔴 BAD</span>    rebuffer    29 of 50 viewers (58%)   4 stalls, 69s frozen in 210s of playback (32.8%)
-                            <span class="hint">↳ worst at viewer 17 · steps-down · the picture is stopped for this long: it is the defect a viewer notices first and forgives least</span>
-<span class="ok">🟢 OK</span>     coverage    every viewer quiet       viewer 0: stopped at 210s of playback as asked
-<span class="ok">🟢 OK</span>     ladder-gap  every viewer quiet       viewer 0: no time spent below a rung the network could have carried
+<span class="bad">🔴 BAD</span>    rebuffer    p99 BAD · p95 BAD · p50 WARN   112 of 200 viewers (56%)  5 stalls, 97s frozen in 210s of playback (46.2%)
+                            <span class="hint">↳ fires from p44 up · worst at viewer 112 · steps-down · the picture is stopped for this long: it is the defect a viewer notices first and forgives least</span>
+<span class="warn">🟡 WARN</span>   coverage    p99 WARN · p95 OK · p50 OK     3 of 200 viewers (2%)     the trace ends at 210s and the session ran 297s: 29% of it was extrapolated
+<span class="ok">🟢 OK</span>     ladder-gap  p99 OK · p95 OK · p50 OK       every viewer quiet        viewer 0: no time spent below a rung the network could have carried
 <span class="hint">…</span>
 
-measurement           min     median        max
-startup              0.3s       0.5s       1.0s
-frozen               0.0s       1.7s        69s
-stalls                  0          1          4
-switches/min          0.9        1.1        1.4
-delivered            1.39       1.55       1.64</pre>
+measurement           min        p50        p95        p99        max
+startup              0.3s       0.5s       0.9s       0.9s       1.0s
+frozen               0.0s       1.7s        60s        80s        97s
+stalls                  0          1          4          4          5
+switches/min          0.9        1.1        1.4        1.7        2.0
+delivered            1.38       1.55       1.64       1.64       1.64
+
+7 checks over 200 viewers — 181 segments each, 210s of media each, worst finding BAD — at the p95: 0.9s to the first frame, 60s frozen</pre>
       </div>
     </div>
     <p class="caption">
       <strong>Viewer 0 is the trace exactly as measured, and it froze for nothing
       at all.</strong> The single-viewer report on these same inputs says the
-      stream is fine. Twenty-nine of fifty viewers rebuffer, and the worst loses
-      69 seconds of 210 to a frozen picture.
+      stream is fine. At the 95th percentile of this audience the picture is frozen
+      for a minute of the three and a half.
     </p>
 
     <div class="grid">
       <div class="card"><h4>The same audience everywhere</h4><p>Scales are <em>stratified</em> and permuted from the same fixed-seed hash the built-in traces use, so <code>--viewers 500</code> is the same 500 viewers on any machine — and even <code>--viewers 8</code> spans the range instead of being eight people on a good line.</p></div>
-      <div class="card"><h4>Share, not just severity</h4><p>A loud check says how much of the audience it happened to — “29 of 50 viewers” is a sentence a ladder decision can be argued from — and names the viewer with the worst case so you can go and look at that session.</p></div>
+      <div class="card"><h4>Severity at a percentile</h4><p>Every check carries its status at <strong>p50, p95 and p99</strong>, worst percentile first, and the checks are ordered by what happens at the p95. Each loud one says the percentile it starts firing from, and names the viewer with the worst case so you can go and look at that session.</p></div>
       <div class="card"><h4>The gate reads the tail</h4><p><code>--exit-on</code> judges the whole audience. One that read only the median viewer would pass a ladder that freezes for one person in twenty.</p></div>
       <div class="card"><h4>Stated, not hidden</h4><p>A viewer's scale depends on how many viewers there are, so viewer 5 of 30 is not viewer 5 of 200. And the population <code>--json</code> carries the distribution plus a per-viewer summary, never two hundred request timelines.</p></div>
     </div>
     <div class="callout">
       <p>
-        Min, median and max — not percentiles. A p95 over eight viewers is
-        arithmetic pretending to be a measurement; percentiles, and findings that
-        carry the percentile they fired at, are the next item in this milestone.
+        <strong>Every figure is a viewer that existed.</strong> The percentiles are
+        nearest-rank order statistics, never interpolated: an interpolated median of
+        <code>[1,2,3,4]</code> is 2.5, which nobody in that audience experienced,
+        and inventing a measurement is the one thing this tool must not do.
+      </p>
+      <p>
+        And a percentile the audience cannot support is not reported at all. A “p95”
+        over ten viewers is the maximum wearing a better name, so a p95 needs 20
+        viewers and a p99 needs 100; below that the column is <code>—</code>, the
+        report says what it would have needed, and the JSON says <code>null</code>.
+        A limit of the audience is never dressed up as a limit of the stream.
       </p>
     </div>
   </section>
@@ -847,7 +858,7 @@ delivered            1.39       1.55       1.64</pre>
       <li><strong>A live edge</strong> — VOD semantics only; the buffer fills as fast as the line allows.</li>
       <li><strong>The startup rule a real player applies before BOLA</strong> — dash.js runs a throughput rule until playback is established, so the rung the first segment is fetched at is BOLA’s rather than a shipped player’s.</li>
       <li><strong>DASH</strong> — HLS for now.</li>
-      <li><strong>Percentiles</strong> — <code>--viewers</code> now reports an audience, but as min, median and max: a p95, and findings that carry the percentile they fired at, are the next item of the milestone below.</li>
+      <li><strong>The device</strong> — the audience varies in bandwidth and nothing else. Two viewers still share a screen, and a phone cannot see the difference between the 1080p rung and the 720p one, so “the top rung served 40% of playback” overstates what that rung buys. Next in the milestone below, with rung attribution and the egress a ladder costs.</li>
     </ul>
     <p>
       And unless you pass <code>--sizes measured</code>, a segment with no declared
@@ -867,7 +878,7 @@ delivered            1.39       1.55       1.64</pre>
     <p class="kicker">Where it is going</p>
     <h2>Milestones</h2>
     <div class="grid">
-      <div class="card"><span class="tag">M6 · in flight</span><h4>The audience, not the session</h4><p><code>--viewers</code> shipped in 0.2.0. Next: the p95 reported before the mean is reported at all, what each rung actually served, and the egress that ladder costs per viewer-hour.</p></div>
+      <div class="card"><span class="tag">M6 · in flight</span><h4>The audience, not the session</h4><p><code>--viewers</code> shipped in 0.2.0 and the percentiles in 0.3.0. Next: what each rung actually served, the egress that ladder costs per viewer-hour, the device ceiling, and a QoE score with its weights printed beside it.</p></div>
       <div class="card"><span class="tag">M2</span><h4>Faithfulness</h4><p>DASH input, request latency, audio on the same pipe, a live edge, and validation against published ABR results.</p></div>
       <div class="card"><span class="tag">M3</span><h4>Comparison and CI</h4><p>Sweeps across every trace and algorithm, two ladders compared, budgets as checked-in config.</p></div>
       <div class="card"><span class="tag">M4</span><h4>Integration</h4><p>Segment sizes from a segcheck report, the missing rung proposed with its cost, a GitHub Action.</p></div>

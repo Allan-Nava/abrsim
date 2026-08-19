@@ -7,6 +7,53 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [0.3.0] — 2026-08-19
+
+**The p95, before anything else** (AB-37) — the second item of M6. A population
+that reports a median is a population telling you about the viewer who was fine.
+
+### Added
+
+- **Every check now carries its severity at p50, p95 and p99**, worst percentile
+  first, and the checks are ordered by **what happens at the p95** rather than by
+  what happened to somebody somewhere. "At the 95th percentile of your audience
+  this is BAD" is the sentence a ladder decision is made from; `rebuffer p99 BAD ·
+  p95 BAD · p50 WARN` on one line is the median hiding the tail, made visible.
+- **Each loud check says the percentile it starts firing from.** Quiet for 44% of
+  the audience means it fires from p44 up — one number that places the defect in
+  the distribution instead of leaving "56% of viewers" to be converted by the
+  reader.
+- **The distribution table gained p95 and p99 columns**, and the summary line
+  quotes the p95 of the two figures an operator acts on first: seconds to the first
+  frame, and seconds frozen. No mean appears anywhere in a population report. A
+  mean startup of 2.1s hides the viewer who waited nine seconds and left, and that
+  viewer is the entire reason the report exists.
+
+### Changed
+
+- **Percentiles are nearest-rank order statistics, and the median moved with
+  them.** `[1,2,3,4]` now reports a p50 of 2, not the interpolated 2.5: every
+  figure in the table is a value some real viewer actually had. An interpolated
+  percentile is a number nobody in the audience experienced, which makes it a
+  measurement this tool invented — the one thing it must not do. The `median` field
+  in the population JSON is now `p50`, alongside `p95`, `p99` and `viewers`.
+- **The numeric table stays ascending** (`min p50 p95 p99 max`) even though AB-37
+  asked for the p99 line before the p50 one. A table of numbers read out of order
+  is a table people misread; "worst first" is honoured where a reader looks first —
+  the check lines, which lead with the p95, and the ordering of those lines.
+
+### Known limitations
+
+- **A percentile the audience cannot support is not reported at all.** A "p95" over
+  ten viewers is the maximum wearing a better name, so a p95 needs 20 viewers and a
+  p99 needs 100. Below that the column is an em dash, the report says what it would
+  have needed, and the JSON carries an explicit `null` — the same `(value, false)`
+  protocol the rest of the codebase uses for "I could not measure this". A limit of
+  the audience is never dressed up as a limit of the stream.
+- Still no weighting: every viewer counts once, so a p95 is the 95th percentile of
+  *the simulated audience*, not of a real one. What that audience should look like —
+  device mix, screen ceiling — is AB-40.
+
 ## [0.2.2] — 2026-08-19
 
 The backlog and the release stopped being a paragraph in `AGENTS.md` that somebody
@@ -490,7 +537,8 @@ no judgement (AB-34) — both attempts at a severity fired on healthy reference
 streams, and a measurement with an honest "no opinion" is worth more than a
 severity that cries wolf.
 
-[Unreleased]: https://github.com/Allan-Nava/abrsim/compare/v0.2.2...HEAD
+[Unreleased]: https://github.com/Allan-Nava/abrsim/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/Allan-Nava/abrsim/compare/v0.2.2...v0.3.0
 [0.2.2]: https://github.com/Allan-Nava/abrsim/compare/v0.2.1...v0.2.2
 [0.2.1]: https://github.com/Allan-Nava/abrsim/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/Allan-Nava/abrsim/compare/v0.1.5...v0.2.0

@@ -20,6 +20,7 @@ package population
 import (
 	"errors"
 	"fmt"
+	"math"
 	"runtime"
 	"sort"
 	"sync"
@@ -33,11 +34,32 @@ import (
 )
 
 // Stat is the spread of one measurement over the audience.
+//
+// The percentiles are **nearest-rank order statistics**: every figure reported
+// here is a value some real viewer had. An interpolated median of [1,2,3,4] is
+// 2.5, which nobody in that audience experienced, and inventing a measurement is
+// the one thing this tool must not do.
+//
+// P95 and P99 are pointers because a small audience cannot support them. A "p95"
+// over ten viewers is the maximum wearing a better name — the tail has no
+// resolution there — so it is reported as absent rather than as a number, which
+// is the same `(value, false)` protocol the rest of the codebase uses for "I
+// could not measure this". In JSON they come out as null.
 type Stat struct {
-	Min    float64 `json:"min"`
-	Median float64 `json:"median"`
-	Max    float64 `json:"max"`
+	Viewers int      `json:"viewers"`
+	Min     float64  `json:"min"`
+	P50     float64  `json:"p50"`
+	P95     *float64 `json:"p95"`
+	P99     *float64 `json:"p99"`
+	Max     float64  `json:"max"`
 }
+
+// p95Needs and p99Needs are the smallest audiences in which one viewer *is* the
+// top 5% and the top 1%. Below them the percentile is not reported at all.
+const (
+	p95Needs = 20
+	p99Needs = 100
+)
 
 // Viewer is what one simulated session came to, without its request timeline: a
 // document carrying two hundred timelines is not a document anybody reads. Run a
@@ -69,6 +91,18 @@ type CheckSpread struct {
 	WorstMessage string         `json:"worst_message,omitempty"`
 	WorstHint    string         `json:"worst_hint,omitempty"`
 	WorstViewer  int            `json:"worst_viewer"`
+
+	// AtP50, AtP95 and AtP99 are this check's severity at those points of the
+	// audience, which is the sentence AB-37 exists for: not "this went BAD
+	// somewhere" but "at the 95th percentile of your viewers, this is BAD".
+	// Empty when the audience cannot support the percentile.
+	AtP50 finding.Status `json:"at_p50"`
+	AtP95 finding.Status `json:"at_p95,omitempty"`
+	AtP99 finding.Status `json:"at_p99,omitempty"`
+	// FiresFrom is the percentile this check starts speaking above: a check
+	// quiet for 60% of the audience fires from p60 up. Zero when it is quiet
+	// everywhere.
+	FiresFrom float64 `json:"fires_from,omitempty"`
 
 	// worstValue is the measurement behind WorstMessage, kept so a later
 	// viewer's finding of the same severity can be compared against it. Not
@@ -201,6 +235,7 @@ func summarise(l manifest.Ladder, base trace.Trace, algName string, results []si
 	delivered := make([]float64, len(results))
 
 	spreads := map[string]*CheckSpread{}
+	statuses := map[string][]finding.Status{}
 	var order []string
 
 	for v, res := range results {
@@ -233,6 +268,7 @@ func summarise(l manifest.Ladder, base trace.Trace, algName string, results []si
 				spreads[f.Check] = s
 				order = append(order, f.Check)
 			}
+			statuses[f.Check] = append(statuses[f.Check], f.Status)
 			switch f.Status {
 			case finding.WARN:
 				s.Warn++
@@ -274,11 +310,35 @@ func summarise(l manifest.Ladder, base trace.Trace, algName string, results []si
 	rep.Stalls, rep.SwitchRate = statOf(stalls), statOf(switches)
 	rep.Delivered = statOf(delivered)
 
-	// Worst first, then the check that is loud for the most viewers, then by
-	// name — sorted from a slice built in first-seen order rather than by
-	// ranging a map, because two runs must produce the same bytes.
+	// Each check's severity at the points of the audience worth naming. The
+	// statuses are sorted by severity so the percentile means the same thing it
+	// does for the numbers: the nth worst viewer, not the nth to be simulated.
+	for name, ss := range statuses {
+		sort.SliceStable(ss, func(i, j int) bool {
+			return finding.Severity(ss[i]) < finding.Severity(ss[j])
+		})
+		s := spreads[name]
+		s.AtP50, _ = statusAt(ss, 50)
+		if v, ok := statusAt(ss, 95); ok {
+			s.AtP95 = v
+		}
+		if v, ok := statusAt(ss, 99); ok {
+			s.AtP99 = v
+		}
+		if s.Loud > 0 {
+			s.FiresFrom = 100 * float64(s.OK) / float64(len(ss))
+		}
+	}
+
+	// Worst at the p95 first — the percentile an operator is paid to care about —
+	// then worst anywhere, then the check loud for the most viewers, then by name.
+	// Sorted from a slice built in first-seen order rather than by ranging a map,
+	// because two runs must produce the same bytes.
 	sort.SliceStable(order, func(a, b int) bool {
 		x, y := spreads[order[a]], spreads[order[b]]
+		if sx, sy := finding.Severity(x.AtP95), finding.Severity(y.AtP95); sx != sy {
+			return sx > sy
+		}
 		if sx, sy := finding.Severity(x.Worst), finding.Severity(y.Worst); sx != sy {
 			return sx > sy
 		}
@@ -316,8 +376,7 @@ func worse(f finding.Finding, s *CheckSpread) bool {
 	return *f.Value > s.worstValue
 }
 
-// statOf is the spread of one measurement. Median is the average of the two
-// middle values on an even count, which is the convention every reader expects.
+// statOf is the spread of one measurement.
 func statOf(vs []float64) Stat {
 	if len(vs) == 0 {
 		return Stat{}
@@ -325,9 +384,52 @@ func statOf(vs []float64) Stat {
 	s := make([]float64, len(vs))
 	copy(s, vs)
 	sort.Float64s(s)
-	med := s[len(s)/2]
-	if len(s)%2 == 0 {
-		med = (s[len(s)/2-1] + s[len(s)/2]) / 2
+	out := Stat{Viewers: len(s), Min: s[0], P50: rank(s, 50), Max: s[len(s)-1]}
+	if len(s) >= p95Needs {
+		v := rank(s, 95)
+		out.P95 = &v
 	}
-	return Stat{Min: s[0], Median: med, Max: s[len(s)-1]}
+	if len(s) >= p99Needs {
+		v := rank(s, 99)
+		out.P99 = &v
+	}
+	return out
+}
+
+// rank is the nearest-rank percentile of an ascending slice: the ceil(p/100 × n)th
+// value, so the answer is always one of the observations rather than a number
+// between two of them.
+func rank(sorted []float64, p float64) float64 {
+	n := len(sorted)
+	i := int(math.Ceil(p / 100 * float64(n)))
+	if i < 1 {
+		i = 1
+	}
+	if i > n {
+		i = n
+	}
+	return sorted[i-1]
+}
+
+// statusAt is a check's severity at one point of the audience: the statuses of
+// every viewer, sorted worst-last, read at the same nearest rank the numbers use.
+// ok is false when the audience is too small for that percentile.
+func statusAt(sorted []finding.Status, p float64) (finding.Status, bool) {
+	n := len(sorted)
+	switch {
+	case n == 0:
+		return "", false
+	case p >= 99 && n < p99Needs:
+		return "", false
+	case p >= 95 && n < p95Needs:
+		return "", false
+	}
+	i := int(math.Ceil(p / 100 * float64(n)))
+	if i < 1 {
+		i = 1
+	}
+	if i > n {
+		i = n
+	}
+	return sorted[i-1], true
 }

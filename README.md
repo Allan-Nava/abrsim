@@ -163,27 +163,30 @@ spread, because the rung you are about to delete is defended or condemned by the
 tail of an audience rather than by its median:
 
 ```
-$ abrsim run https://cdn.example/master.m3u8 --trace steps-down --viewers 50
+$ abrsim run https://cdn.example/master.m3u8 --trace steps-down --viewers 200
 
-50 viewers over `steps-down` with bola — the spread, not one session
+200 viewers over `steps-down` with bola — the spread, not one session
 
-🔴 BAD    rebuffer    29 of 50 viewers (58%)   4 stalls, 69s frozen in 210s of playback (32.8%)
-                            ↳ worst at viewer 17 · steps-down · the picture is stopped for this long: it is the defect a viewer notices first and forgives least
-🟢 OK     ladder-gap  every viewer quiet       viewer 0: no time spent below a rung the network could have carried
+🔴 BAD    rebuffer    p99 BAD · p95 BAD · p50 WARN   112 of 200 viewers (56%)  5 stalls, 97s frozen in 210s of playback (46.2%)
+                            ↳ fires from p44 up · worst at viewer 112 · steps-down · the picture is stopped for this long: it is the defect a viewer notices first and forgives least
+🟡 WARN   coverage    p99 WARN · p95 OK · p50 OK     3 of 200 viewers (2%)     the trace ends at 210s and the session ran 297s: 29% of it was extrapolated
+🟢 OK     ladder-gap  p99 OK · p95 OK · p50 OK       every viewer quiet        viewer 0: no time spent below a rung the network could have carried
 …
 
-measurement           min     median        max
-startup              0.3s       0.5s       1.0s
-frozen               0.0s       1.7s        69s
-stalls                  0          1          4
-switches/min          0.9        1.1        1.4
-delivered            1.39       1.55       1.64
+measurement           min        p50        p95        p99        max
+startup              0.3s       0.5s       0.9s       0.9s       1.0s
+frozen               0.0s       1.7s        60s        80s        97s
+stalls                  0          1          4          4          5
+switches/min          0.9        1.1        1.4        1.7        2.0
+delivered            1.38       1.55       1.64       1.64       1.64
+
+7 checks over 200 viewers — 181 segments each, 210s of media each, worst finding BAD — at the p95: 0.9s to the first frame, 60s frozen
 ```
 
 That is a real run against Apple's public reference stream. **Viewer 0 is the
 trace exactly as measured, and it froze for nothing at all** — the single-viewer
-report on the same inputs says the stream is fine, while 29 of 50 viewers
-rebuffer and the worst loses 69 seconds of 210 to a frozen picture.
+report on the same inputs says the stream is fine, while at the 95th percentile of
+this audience the picture is frozen for a minute of the three and a half.
 
 - Viewer 0 is always the trace as measured, so `--viewers 1` is byte-for-byte the
   run this tool has always done.
@@ -200,9 +203,26 @@ rebuffer and the worst loses 69 seconds of 210 to a frozen picture.
 - `--json` carries the distribution and a per-viewer summary, **not** two hundred
   request timelines. Run a single viewer for the full one.
 
-Percentiles — a p95 reported before any mean, and findings that carry the
-percentile they fired at — are [AB-37](BACKLOG.md). Min, median and max are what
-a small audience can honestly support.
+### The percentiles, and where they stop
+
+- **Every check carries its severity at p50, p95 and p99**, worst percentile
+  first, and the checks are ordered by what happens at the **p95** rather than by
+  what happened to somebody: "at the 95th percentile of your audience this is BAD"
+  is the sentence a ladder decision is made from. Each loud check also says the
+  percentile it starts firing from — quiet for 44% of viewers means it fires from
+  p44 up.
+- **Every figure is a viewer that existed.** The percentiles are nearest-rank
+  order statistics with no interpolation: an interpolated median of `[1,2,3,4]` is
+  2.5, a number nobody in that audience experienced, and inventing a measurement
+  is the one thing this tool must not do.
+- **A percentile the audience cannot support is not reported.** A "p95" over ten
+  viewers is the maximum wearing a better name, so a p95 needs 20 viewers and a
+  p99 needs 100. Below that the column is `—` and the report says what it would
+  have needed — a limit of the audience, never dressed up as a limit of the stream.
+  In `--json` those come out as explicit `null`.
+- No means anywhere. A mean startup of 2.1s hides the viewer who waited nine
+  seconds and left, and that viewer is the entire reason an operator is reading
+  this.
 
 ## What it does not model
 

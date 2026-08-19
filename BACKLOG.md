@@ -11,7 +11,7 @@ touching this file, or CI will fail.
 ## How to write an item
 
 ```
-## M2 — Title of the milestone <!-- ms: target=v0.2.0 phase=now -->
+## M2 — Title of the milestone <!-- ms: target=v0.4.0 phase=now -->
 
 - [ ] **AB-12 — Short name**: what it is, why it earns its place, what it
   needs to touch. <!-- ab: prio=high size=L labels=manifest -->
@@ -112,7 +112,7 @@ itself — the run has to be reproducible byte for byte.
   built on declared bitrates, and a top-rung exclusion with a magic threshold.
   <!-- ab: prio=high size=M labels=tests ver=0.1.0 -->
 
-## M2 — Faithfulness <!-- ms: target=v0.3.0 phase=next -->
+## M2 — Faithfulness <!-- ms: target=v0.4.0 phase=next -->
 
 Everything that stands between "a plausible number" and "a number an encoder
 setting should be changed on".
@@ -176,7 +176,7 @@ setting should be changed on".
   measure what the viewer waits. The rebuffer nobody counts is the one after a
   scrub. <!-- ab: prio=low size=M labels=sim -->
 
-## M3 — Comparison and CI <!-- ms: target=v0.4.0 phase=later -->
+## M3 — Comparison and CI <!-- ms: target=v0.5.0 phase=later -->
 
 One run answers a question; the tool earns a place in a pipeline when it can
 answer *did this change make it better*.
@@ -196,7 +196,7 @@ answer *did this change make it better*.
   for plotting, and markdown output for pasting into an incident document.
   <!-- ab: prio=med size=S labels=output -->
 
-## M4 — Integration <!-- ms: target=v0.5.0 phase=later -->
+## M4 — Integration <!-- ms: target=v0.6.0 phase=later -->
 
 - [ ] **AB-25 — Read sizes from a segcheck report**: segcheck already downloaded
   and measured the segments; taking its JSON turns AB-4's estimate into real
@@ -211,7 +211,7 @@ answer *did this change make it better*.
 - [ ] **AB-28 — Container image**: a static image for pipelines that will not
   install a binary. <!-- ab: prio=low size=S labels=delivery -->
 
-## M6 — The audience, not the session <!-- ms: target=v0.2.0 phase=now -->
+## M6 — The audience, not the session <!-- ms: target=v0.3.0 phase=now -->
 
 **This milestone went first.** M2 was the one in flight and the maintainer chose
 to start here instead, so the targets moved rather than the meanings: M6 aims at
@@ -241,12 +241,20 @@ invent a measurement, one more axis.
   what it was built to find: viewer 0 froze for nothing, 29 of 50 viewers
   rebuffered, and the worst lost 69s of 210 to a frozen picture.
   <!-- ab: prio=high size=L labels=sim,trace,cli ver=0.2.0 -->
-- [ ] **AB-37 — The p95 first, and the mean nowhere**: over a population every
+- [x] **AB-37 — The p95 first, and the mean nowhere**: over a population every
   check reports p50/p95/p99 rather than an average, and a finding carries the
   percentile it fired at. A mean startup time of 2.1s hides the one viewer in
   twenty who waited nine seconds and left, and that viewer is the entire reason
   an operator is reading this. Worst first, as everywhere else: the p99 line
-  comes before the p50 one. <!-- ab: prio=high size=M labels=check,output -->
+  Shipped as nearest-rank order statistics, so every figure reported is a value
+  some real viewer had: an interpolated median is a number nobody in the
+  audience experienced. A percentile the audience cannot support is not reported
+  at all — a p95 needs 20 viewers and a p99 needs 100, below which the column
+  is an em dash and the JSON is null. The checks are ordered by their severity
+  at the p95 rather than by what happened to somebody, and the numeric table
+  stays ascending because a table of numbers read out of order is a table people
+  misread.
+  comes before the p50 one. <!-- ab: prio=high size=M labels=check,output ver=0.3.0 -->
 - [ ] **AB-38 — Rung attribution**: how many seconds of the audience's playback
   each rung actually served, per rung, from the timeline the simulator already
   emits. A rung nothing ever selects costs encoding, storage and egress and buys
@@ -278,7 +286,7 @@ invent a measurement, one more axis.
   no opinion beats a grade nobody can defend.
   <!-- ab: prio=med size=M labels=check,abr -->
 
-## M7 — A ladder you can defend <!-- ms: target=v0.6.0 phase=later -->
+## M7 — A ladder you can defend <!-- ms: target=v0.7.0 phase=later -->
 
 Everything up to here **names** a defect. An encoding team then has to decide what
 to do about it, and that decision — add a rung, drop one, move two — is where the

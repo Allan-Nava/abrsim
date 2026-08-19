@@ -43,27 +43,37 @@ func TextPopulation(w io.Writer, r PopulationReport, colour bool) error {
 		// The sentence beside a quiet check is one viewer's, so it says whose.
 		// Without that it reads as a statement about the whole audience, which
 		// is the mistake this whole feature exists to stop making.
+		var line string
 		message := fmt.Sprintf("viewer %d: %s", c.WorstViewer, c.WorstMessage)
 		if c.Loud > 0 {
 			share = fmt.Sprintf("%d of %d viewers (%.0f%%)", c.Loud, p.Viewers, 100*float64(c.Loud)/float64(p.Viewers))
 			message = c.WorstMessage
 		}
-		line := fmt.Sprintf("%s %-6s %-11s %-24s %s",
-			markFor(c.Worst), paint(colourFor(c.Worst), string(c.Worst)), c.Check, share, message)
+		// The severity at the percentiles, which is the sentence AB-37 exists
+		// for: "at the 95th percentile of your audience this is BAD", with the
+		// p50 beside it so the median hiding the tail is visible rather than
+		// implied. The p95 comes first because it is the one an operator is paid
+		// to care about.
+		at := "p95 " + statusCell(c.AtP95) + " · p50 " + statusCell(c.AtP50)
+		if c.AtP99 != "" {
+			at = "p99 " + statusCell(c.AtP99) + " · " + at
+		}
+		line = fmt.Sprintf("%s %-6s %-11s %-30s %-24s %s",
+			markFor(c.Worst), paint(colourFor(c.Worst), string(c.Worst)), c.Check, at, share, message)
 		if _, err := fmt.Fprintln(w, line); err != nil {
 			return err
 		}
 		if c.Loud > 0 {
 			// The worst viewer is named because a population is reproducible:
 			// somebody can go and look at exactly that session.
-			at := fmt.Sprintf("                            ↳ worst at viewer %d", c.WorstViewer)
+			note := fmt.Sprintf("                            ↳ fires from p%.0f up · worst at viewer %d", c.FiresFrom, c.WorstViewer)
 			if c.WorstTarget != "" {
-				at += " · " + c.WorstTarget
+				note += " · " + c.WorstTarget
 			}
 			if c.WorstHint != "" {
-				at += " · " + c.WorstHint
+				note += " · " + c.WorstHint
 			}
-			if _, err := fmt.Fprintln(w, paint(dim, at)); err != nil {
+			if _, err := fmt.Fprintln(w, paint(dim, note)); err != nil {
 				return err
 			}
 		}
@@ -80,12 +90,30 @@ func TextPopulation(w io.Writer, r PopulationReport, colour bool) error {
 		{"switches/min", p.SwitchRate, ""},
 		{"delivered", p.Delivered, "Mbps"},
 	}
-	if _, err := fmt.Fprintf(w, "\n%-14s %10s %10s %10s\n", "measurement", "min", "median", "max"); err != nil {
+	// Ascending, because a table of numbers read out of order is a table people
+	// misread. "The p95 first" is honoured where a reader looks first: the check
+	// lines above, which lead with it, and the summary line below, which quotes it.
+	if _, err := fmt.Fprintf(w, "\n%-14s %10s %10s %10s %10s %10s\n",
+		"measurement", "min", "p50", "p95", "p99", "max"); err != nil {
 		return err
 	}
 	for _, row := range rows {
-		if _, err := fmt.Fprintf(w, "%-14s %10s %10s %10s\n", row.label,
-			statCell(row.stat.Min, row.unit), statCell(row.stat.Median, row.unit), statCell(row.stat.Max, row.unit)); err != nil {
+		if _, err := fmt.Fprintf(w, "%-14s %10s %10s %10s %10s %10s\n", row.label,
+			statCell(row.stat.Min, row.unit), statCell(row.stat.P50, row.unit),
+			pctCell(row.stat.P95, row.unit), pctCell(row.stat.P99, row.unit),
+			statCell(row.stat.Max, row.unit)); err != nil {
+			return err
+		}
+	}
+	// Say what the missing columns would need rather than leaving a dash to be
+	// interpreted: an absent percentile is a limit of the audience, not of the
+	// stream, and this tool never reports the first as if it were the second.
+	if p.Startup.P95 == nil || p.Startup.P99 == nil {
+		need := "a p99 needs 100 viewers"
+		if p.Startup.P95 == nil {
+			need = "a p95 needs 20 viewers and " + need
+		}
+		if _, err := fmt.Fprintf(w, "%s\n", paint(dim, fmt.Sprintf("— : %s; with %d there is no tail to read at that resolution", need, p.Viewers))); err != nil {
 			return err
 		}
 	}
@@ -106,8 +134,13 @@ func TextPopulation(w io.Writer, r PopulationReport, colour bool) error {
 	if lo != hi {
 		watched = secs(lo) + "–" + secs(hi) + " of media"
 	}
-	if _, err := fmt.Fprintf(w, "\n%d checks over %d viewers — %d segments each, %s, worst finding %s\n",
-		len(p.Checks), p.Viewers, p.Segments, watched, p.Worst()); err != nil {
+	tail := ""
+	if p.Startup.P95 != nil && p.Frozen.P95 != nil {
+		tail = fmt.Sprintf(" — at the p95: %s to the first frame, %s frozen",
+			secs(*p.Startup.P95), secs(*p.Frozen.P95))
+	}
+	if _, err := fmt.Fprintf(w, "\n%d checks over %d viewers — %d segments each, %s, worst finding %s%s\n",
+		len(p.Checks), p.Viewers, p.Segments, watched, p.Worst(), tail); err != nil {
 		return err
 	}
 	if p.Incomplete > 0 {
@@ -136,6 +169,23 @@ func statCell(v float64, unit string) string {
 		return fmt.Sprintf("%d", int64(v))
 	}
 	return fmt.Sprintf("%.1f", v)
+}
+
+// pctCell formats a percentile the audience may not support. An em dash rather
+// than a zero: a number that was not measured must not look like a measurement.
+func pctCell(v *float64, unit string) string {
+	if v == nil {
+		return "—"
+	}
+	return statCell(*v, unit)
+}
+
+// statusCell keeps the severity columns aligned when a percentile is absent.
+func statusCell(s finding.Status) string {
+	if s == "" {
+		return "—"
+	}
+	return string(s)
 }
 
 // JSONPopulation renders the audience. Per-viewer *summaries*, never their

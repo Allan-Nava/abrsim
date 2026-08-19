@@ -15,18 +15,21 @@ func popReport() PopulationReport {
 		Source: "https://cdn.example/master.m3u8",
 		Population: population.Report{
 			Viewers: 30, Trace: "steps-down", Algorithm: "bola", Segments: 40,
-			Startup:    population.Stat{Min: 0.4, Median: 1.2, Max: 4.8},
-			Frozen:     population.Stat{Min: 0, Median: 0, Max: 21.4},
-			Stalls:     population.Stat{Min: 0, Median: 0, Max: 6},
-			SwitchRate: population.Stat{Min: 0.4, Median: 2.1, Max: 9.8},
-			Delivered:  population.Stat{Min: 900e3, Median: 2.4e6, Max: 3.6e6},
+			Startup:    stat(30, 0.4, 1.2, 3.9, 4.8),
+			Frozen:     stat(30, 0, 0, 18.2, 21.4),
+			Stalls:     stat(30, 0, 0, 5, 6),
+			SwitchRate: stat(30, 0.4, 2.1, 8.8, 9.8),
+			Delivered:  stat(30, 900e3, 2.4e6, 1.1e6, 3.6e6),
 			Checks: []population.CheckSpread{
 				{Check: "rebuffer", Worst: finding.BAD, Loud: 12, OK: 18, Bad: 12,
+					AtP50: finding.OK, AtP95: finding.BAD, FiresFrom: 60,
 					WorstTarget: "steps-down", WorstMessage: "6 stalls, 21s frozen in 160s of playback (13.4%)",
 					WorstHint: "the picture is stopped for this long", WorstViewer: 23},
 				{Check: "startup", Worst: finding.WARN, Loud: 8, OK: 22, Warn: 8,
+					AtP50: finding.OK, AtP95: finding.WARN, FiresFrom: 73.3,
 					WorstMessage: "4.8s to the first frame, starting on 1000k", WorstViewer: 7},
-				{Check: "sizes", Worst: finding.OK, OK: 30, WorstMessage: "every segment size was measured"},
+				{Check: "sizes", Worst: finding.OK, OK: 30, AtP50: finding.OK, AtP95: finding.OK,
+					WorstMessage: "every segment size was measured"},
 			},
 			Runs: []population.Viewer{{Index: 0, Startup: 1.2}, {Index: 23, Startup: 4.8, Frozen: 21.4, Stalls: 6}},
 		},
@@ -69,13 +72,58 @@ func TestTextPopulation_LeadsWithTheWorstAndNamesTheViewer(t *testing.T) {
 	if !strings.Contains(quiet, "viewer 0") {
 		t.Errorf("the quiet line is %q — a single viewer's sentence has to say which viewer, or it reads as a statement about the whole audience", quiet)
 	}
-	for _, want := range []string{"startup", "frozen", "switches/min", "delivered", "median", "min", "max"} {
+	for _, want := range []string{"startup", "frozen", "switches/min", "delivered", "p50", "p95", "min", "max"} {
 		if !strings.Contains(out, want) {
 			t.Errorf("no %q in the distribution table:\n%s", want, out)
 		}
 	}
 	if !strings.Contains(out, "21.4s") && !strings.Contains(out, "21s") {
 		t.Errorf("the worst viewer's frozen seconds are missing from the table:\n%s", out)
+	}
+}
+
+func TestTextPopulation_LeadsWithTheSeverityAtTheP95(t *testing.T) {
+	var b bytes.Buffer
+	if err := TextPopulation(&b, popReport(), false); err != nil {
+		t.Fatalf("TextPopulation: %v", err)
+	}
+	out := b.String()
+	if !strings.Contains(out, "p95 BAD") {
+		t.Errorf("no severity at the p95 on the rebuffer line:\n%s", out)
+	}
+	if !strings.Contains(out, "p50 OK") {
+		t.Errorf("no severity at the p50 beside it — that pairing is what shows the median hiding the tail:\n%s", out)
+	}
+	if !strings.Contains(out, "from p60") {
+		t.Errorf("the report never says the percentile the check starts firing from:\n%s", out)
+	}
+	// The p95 of the headline measurements belongs in the summary line, not a mean.
+	if strings.Contains(out, "mean") {
+		t.Error("the population report mentions a mean: a mean startup time hides the viewer who left")
+	}
+}
+
+func TestTextPopulation_SaysWhenTheAudienceIsTooSmallForAPercentile(t *testing.T) {
+	r := popReport()
+	r.Population.Viewers = 8
+	r.Population.Startup = stat(8, 0.4, 1.2, 0, 4.8) // no p95: eight viewers cannot carry one
+	r.Population.Frozen = stat(8, 0, 0, 0, 21.4)
+	r.Population.Stalls = stat(8, 0, 0, 0, 6)
+	r.Population.SwitchRate = stat(8, 0.4, 2.1, 0, 9.8)
+	r.Population.Delivered = stat(8, 900e3, 2.4e6, 0, 3.6e6)
+	for i := range r.Population.Checks {
+		r.Population.Checks[i].AtP95 = ""
+	}
+	var b bytes.Buffer
+	if err := TextPopulation(&b, r, false); err != nil {
+		t.Fatalf("TextPopulation: %v", err)
+	}
+	out := b.String()
+	if !strings.Contains(out, "—") {
+		t.Errorf("an unsupported percentile is not shown as absent:\n%s", out)
+	}
+	if !strings.Contains(out, "20 viewers") {
+		t.Errorf("the report does not say what a p95 would need:\n%s", out)
 	}
 }
 
@@ -100,17 +148,27 @@ func TestTextPopulation_SaysWhenViewersWatchedDifferentAmounts(t *testing.T) {
 	}
 }
 
-func TestTextPopulation_SaysWhenTheMedianHidesTheTail(t *testing.T) {
+func TestTextPopulation_PutsTheP50BesideTheTail(t *testing.T) {
 	var b bytes.Buffer
 	if err := TextPopulation(&b, popReport(), false); err != nil {
 		t.Fatalf("TextPopulation: %v", err)
 	}
-	// A median of zero frozen seconds beside a maximum of 21 is the one thing a
-	// single-viewer run would have got wrong, so the report has to point at it.
-	if !strings.Contains(b.String(), "median") {
-		t.Error("no median in the output")
+	out := b.String()
+	// Zero frozen seconds at the p50 beside eighteen at the p95 is the one thing
+	// a single-viewer run gets wrong, so the two have to be on the same line.
+	frozen := ""
+	for _, l := range strings.Split(out, "\n") {
+		if strings.HasPrefix(l, "frozen") {
+			frozen = l
+		}
 	}
-	if strings.Contains(b.String(), "\x1b[") {
+	if frozen == "" {
+		t.Fatalf("no frozen row in:\n%s", out)
+	}
+	if !strings.Contains(frozen, "0.0s") || !strings.Contains(frozen, "18s") || !strings.Contains(frozen, "21s") {
+		t.Errorf("the frozen row is %q — it has to carry the quiet p50 and the loud tail together", frozen)
+	}
+	if strings.Contains(out, "\x1b[") {
 		t.Error("colour without being asked for it")
 	}
 }
@@ -142,7 +200,8 @@ func TestJSONPopulation_ParsesAndKeepsEveryViewer(t *testing.T) {
 			} `json:"checks"`
 			Runs    []struct{ Index int } `json:"runs"`
 			Startup struct {
-				Min, Median, Max float64
+				Min, P50, Max float64
+				P95, P99      *float64
 			} `json:"startup"`
 		} `json:"population"`
 	}
@@ -158,7 +217,27 @@ func TestJSONPopulation_ParsesAndKeepsEveryViewer(t *testing.T) {
 	if got.Population.Startup.Max != 4.8 {
 		t.Errorf("startup.max = %v, want 4.8 — the tail is the number a machine consumer is here for", got.Population.Startup.Max)
 	}
+	if got.Population.Startup.P95 == nil || *got.Population.Startup.P95 != 3.9 {
+		t.Errorf("startup.p95 = %v, want 3.9", got.Population.Startup.P95)
+	}
+	if got.Population.Startup.P99 != nil {
+		t.Errorf("startup.p99 = %v, want null: thirty viewers cannot carry a p99", *got.Population.Startup.P99)
+	}
+	if !strings.Contains(b.String(), "\"p99\": null") {
+		t.Error("an unsupported percentile should be an explicit null, the same protocol as (value, false) elsewhere")
+	}
 	if strings.Contains(b.String(), "\"requests\"") {
 		t.Error("the population document carries per-request timelines: two hundred of those is not a document anybody reads")
 	}
+}
+
+// stat builds a distribution for the fixtures. p95 is omitted when it is zero,
+// which is how a real Stat comes back from an audience too small to carry one.
+func stat(viewers int, min, p50, p95, max float64) population.Stat {
+	s := population.Stat{Viewers: viewers, Min: min, P50: p50, Max: max}
+	if p95 != 0 {
+		v := p95
+		s.P95 = &v
+	}
+	return s
 }
