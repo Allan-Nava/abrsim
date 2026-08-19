@@ -112,7 +112,7 @@ itself — the run has to be reproducible byte for byte.
   built on declared bitrates, and a top-rung exclusion with a magic threshold.
   <!-- ab: prio=high size=M labels=tests ver=0.1.0 -->
 
-## M2 — Faithfulness <!-- ms: target=v0.2.0 phase=now -->
+## M2 — Faithfulness <!-- ms: target=v0.3.0 phase=next -->
 
 Everything that stands between "a plausible number" and "a number an encoder
 setting should be changed on".
@@ -176,7 +176,7 @@ setting should be changed on".
   measure what the viewer waits. The rebuffer nobody counts is the one after a
   scrub. <!-- ab: prio=low size=M labels=sim -->
 
-## M3 — Comparison and CI <!-- ms: target=v0.3.0 phase=later -->
+## M3 — Comparison and CI <!-- ms: target=v0.4.0 phase=later -->
 
 One run answers a question; the tool earns a place in a pipeline when it can
 answer *did this change make it better*.
@@ -196,7 +196,7 @@ answer *did this change make it better*.
   for plotting, and markdown output for pasting into an incident document.
   <!-- ab: prio=med size=S labels=output -->
 
-## M4 — Integration <!-- ms: target=v0.4.0 phase=later -->
+## M4 — Integration <!-- ms: target=v0.5.0 phase=later -->
 
 - [ ] **AB-25 — Read sizes from a segcheck report**: segcheck already downloaded
   and measured the segments; taking its JSON turns AB-4's estimate into real
@@ -211,7 +211,12 @@ answer *did this change make it better*.
 - [ ] **AB-28 — Container image**: a static image for pipelines that will not
   install a binary. <!-- ab: prio=low size=S labels=delivery -->
 
-## M6 — The audience, not the session <!-- ms: target=v0.5.0 phase=later -->
+## M6 — The audience, not the session <!-- ms: target=v0.2.0 phase=now -->
+
+**This milestone went first.** M2 was the one in flight and the maintainer chose
+to start here instead, so the targets moved rather than the meanings: M6 aims at
+`v0.2.0`, M2 at `v0.3.0`, M3 at `v0.4.0`, M4 at `v0.5.0`. Milestone numbers are
+identities, not an order of service.
 
 One run over one trace says what one viewer got, and that is an anecdote a
 ladder decision cannot rest on. Nobody encodes a rung for one viewer: the rung
@@ -220,7 +225,7 @@ not by its median, and the cost of keeping it is paid per viewer-hour. This
 milestone turns a run into a distribution — same determinism, same refusal to
 invent a measurement, one more axis.
 
-- [ ] **AB-36 — A population, not a viewer**: `--viewers n` runs n sessions over
+- [x] **AB-36 — A population, not a viewer**: `--viewers n` runs n sessions over
   traces drawn around a named built-in, and reports the run as a distribution.
   The nth viewer's trace comes from the same fixed-seed integer hash the built-in
   traces already use, so `--viewers 500` twice is the same 500 viewers on any
@@ -228,7 +233,14 @@ invent a measurement, one more axis.
   nobody can argue with. Sessions are independent, so they fan out across
   goroutines and the results are ordered by index before anything reads them:
   the goroutine that finishes first must not decide what the output says.
-  <!-- ab: prio=high size=L labels=sim,trace,cli -->
+  Shipped with the scales **stratified** rather than drawn independently (an
+  independent draw left `--viewers 30` with a mean scale of 1.14 — thirty people
+  on a better line than the one measured, and no bottom tail at all), min/median/
+  max rather than percentiles (AB-37), and a per-viewer summary in the JSON rather
+  than n request timelines. On Apple's reference stream over `steps-down` it found
+  what it was built to find: viewer 0 froze for nothing, 29 of 50 viewers
+  rebuffered, and the worst lost 69s of 210 to a frozen picture.
+  <!-- ab: prio=high size=L labels=sim,trace,cli ver=0.2.0 -->
 - [ ] **AB-37 — The p95 first, and the mean nowhere**: over a population every
   check reports p50/p95/p99 rather than an average, and a finding carries the
   percentile it fired at. A mean startup time of 2.1s hides the one viewer in

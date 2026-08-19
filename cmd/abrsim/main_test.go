@@ -179,3 +179,87 @@ func TestVersion(t *testing.T) {
 		t.Errorf("version = %d %q", code, out)
 	}
 }
+
+// --- AB-36: an audience rather than a viewer ---------------------------------
+
+func TestRun_ViewersReportsTheSpreadAndNamesTheWorstViewer(t *testing.T) {
+	code, out, errs := exec(t, "run", ladderDir(t), "--trace", "steps-down", "--abr", "bola", "--viewers", "24")
+	if code != 0 {
+		t.Fatalf("exit %d, want 0\nstderr: %s", code, errs)
+	}
+	for _, want := range []string{"24 viewers", "steps-down", "median", "viewers ("} {
+		if !strings.Contains(out, want) {
+			t.Errorf("no %q in:\n%s", want, out)
+		}
+	}
+	if !strings.Contains(out, "worst at viewer") {
+		t.Errorf("the report never says which viewer the worst finding came from:\n%s", out)
+	}
+}
+
+func TestRun_OneViewerIsIdenticalToNotAskingForAPopulation(t *testing.T) {
+	dir := ladderDir(t)
+	_, plain, _ := exec(t, "run", dir, "--trace", "mobile-4g", "--abr", "bola", "--json")
+	_, one, _ := exec(t, "run", dir, "--trace", "mobile-4g", "--abr", "bola", "--json", "--viewers", "1")
+	if plain != one {
+		t.Error("--viewers 1 produced a different document from no --viewers at all: the default has to stay the run this tool always did")
+	}
+}
+
+func TestRun_ViewersJSONCarriesTheDistributionButNotEveryTimeline(t *testing.T) {
+	code, out, errs := exec(t, "run", ladderDir(t), "--trace", "mobile-4g", "--viewers", "12", "--json")
+	if code != 0 {
+		t.Fatalf("exit %d: %s", code, errs)
+	}
+	var doc struct {
+		Population struct {
+			Viewers int `json:"viewers"`
+			Startup struct {
+				Min, Median, Max float64
+			} `json:"startup"`
+			Checks []struct {
+				Check string `json:"check"`
+				Loud  int    `json:"above_ok"`
+			} `json:"checks"`
+			Runs []struct {
+				Index int `json:"index"`
+			} `json:"runs"`
+		} `json:"population"`
+	}
+	if err := json.Unmarshal([]byte(out), &doc); err != nil {
+		t.Fatalf("the population document does not parse: %v", err)
+	}
+	if doc.Population.Viewers != 12 || len(doc.Population.Runs) != 12 {
+		t.Errorf("viewers = %d, runs = %d, want 12 of each", doc.Population.Viewers, len(doc.Population.Runs))
+	}
+	if len(doc.Population.Checks) != 7 {
+		t.Errorf("%d checks, want 7 — every check speaks over an audience too", len(doc.Population.Checks))
+	}
+	if doc.Population.Startup.Max < doc.Population.Startup.Min {
+		t.Errorf("startup spread is inside out: %+v", doc.Population.Startup)
+	}
+	if strings.Contains(out, "\"requests\"") {
+		t.Error("twelve request timelines in one document: run a single viewer for the timeline")
+	}
+}
+
+func TestRun_ViewersExitOnJudgesTheWholeAudience(t *testing.T) {
+	// The ladder has a hole in it, so ladder-gap is BAD for somebody in any
+	// population over a trace that walks the range.
+	code, _, _ := exec(t, "run", ladderDir(t), "--trace", "steps-down", "--viewers", "16", "--exit-on", "bad")
+	if code != 1 {
+		t.Errorf("exit %d, want 1 — a gate that only read the median viewer would pass a ladder that freezes for one person in twenty", code)
+	}
+}
+
+func TestRun_ViewersWantsAtLeastOneViewer(t *testing.T) {
+	for _, n := range []string{"0", "-4"} {
+		code, _, errs := exec(t, "run", ladderDir(t), "--viewers", n)
+		if code != 2 {
+			t.Errorf("--viewers %s: exit %d, want 2 (a usage error)", n, code)
+		}
+		if !strings.Contains(errs, "viewers") {
+			t.Errorf("--viewers %s: stderr does not mention the flag: %s", n, errs)
+		}
+	}
+}

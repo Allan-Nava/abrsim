@@ -17,6 +17,7 @@ import (
 	"github.com/Allan-Nava/abrsim/internal/finding"
 	"github.com/Allan-Nava/abrsim/internal/manifest"
 	"github.com/Allan-Nava/abrsim/internal/output"
+	"github.com/Allan-Nava/abrsim/internal/population"
 	"github.com/Allan-Nava/abrsim/internal/sim"
 	"github.com/Allan-Nava/abrsim/internal/trace"
 )
@@ -70,6 +71,8 @@ Flags for `+"`run`"+`:
   --startup-buffer DUR   media buffered before playback begins (default 2s)
   --buffer-cap DUR       what the player will hold before it stops requesting (default 30s)
   --play DUR             stop after this much media; 0 plays the whole asset (default 0)
+  --viewers N            simulate N people on variations of the same network and
+                         report the spread instead of one session (default 1)
   --header 'K: V'        sent on every request; repeatable. Credentials go here,
                          never in a flag value that lands in shell history
   --timeout DUR          per-request timeout (default 30s)
@@ -139,6 +142,7 @@ func cmdRun(args []string, stdout, stderr io.Writer) int {
 		startup   = fs.Duration("startup-buffer", 2*time.Second, "")
 		cap_      = fs.Duration("buffer-cap", 30*time.Second, "")
 		play      = fs.Duration("play", 0, "")
+		viewers   = fs.Int("viewers", 1, "")
 		timeout   = fs.Duration("timeout", 30*time.Second, "")
 		asJSON    = fs.Bool("json", false, "")
 		noColour  = fs.Bool("no-color", false, "")
@@ -181,6 +185,10 @@ func cmdRun(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "abrsim: --sizes is declared or measured, not %q\n", *sizes)
 		return 2
 	}
+	if *viewers < 1 {
+		fmt.Fprintf(stderr, "abrsim: --viewers is how many people watch, so at least 1, not %d\n", *viewers)
+		return 2
+	}
 	threshold := finding.Status(strings.ToUpper(*exitOn))
 	if *exitOn != "" && finding.Severity(threshold) == 0 && threshold != finding.OK {
 		fmt.Fprintf(stderr, "abrsim: --exit-on is ok, warn, bad or error, not %q\n", *exitOn)
@@ -201,11 +209,55 @@ func cmdRun(args []string, stdout, stderr io.Writer) int {
 		return 1
 	}
 
-	res, err := sim.Run(ladder, tr, alg, sim.Options{
+	simOpts := sim.Options{
 		StartupBuffer: startup.Seconds(),
 		BufferCap:     cap_.Seconds(),
 		MaxSeconds:    play.Seconds(),
-	})
+	}
+
+	// An audience rather than a viewer. `--viewers 1` deliberately falls through
+	// to the single-run path below: one viewer is the trace as measured, and its
+	// report is the one this tool has always printed, timeline included.
+	if *viewers > 1 {
+		pop, err := population.Run(ladder, tr, alg.Name(), simOpts, *viewers)
+		if err != nil {
+			fmt.Fprintf(stderr, "abrsim: %v\n", err)
+			return 1
+		}
+		rep := output.PopulationReport{
+			Source:     ladder.Source,
+			Ladder:     ladder.Rungs(),
+			Population: pop,
+			Options: map[string]any{
+				"trace":          tr.Name,
+				"algorithm":      alg.Name(),
+				"sizes":          *sizes,
+				"startup_buffer": startup.Seconds(),
+				"buffer_cap":     cap_.Seconds(),
+				"viewers":        *viewers,
+			},
+		}
+		if *asJSON {
+			if err := output.JSONPopulation(stdout, rep); err != nil {
+				fmt.Fprintf(stderr, "abrsim: %v\n", err)
+				return 1
+			}
+		} else {
+			colour := output.UseColour(isTerminal(stdout) && !*noColour, os.Getenv("NO_COLOR"))
+			if err := output.TextPopulation(stdout, rep, colour); err != nil {
+				fmt.Fprintf(stderr, "abrsim: %v\n", err)
+				return 1
+			}
+		}
+		// The whole audience, not its median: a gate that read only the middle
+		// viewer would pass a ladder that freezes for one person in twenty.
+		if *exitOn != "" && finding.AtLeast(pop.Worst(), threshold) {
+			return 1
+		}
+		return 0
+	}
+
+	res, err := sim.Run(ladder, tr, alg, simOpts)
 	if err != nil {
 		fmt.Fprintf(stderr, "abrsim: %v\n", err)
 		return 1

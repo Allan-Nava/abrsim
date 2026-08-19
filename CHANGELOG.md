@@ -7,6 +7,90 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [0.2.0] — 2026-08-19
+
+**An audience instead of a viewer** (AB-36) — the first item of M6, and the first
+release where abrsim can answer a question about a ladder that a single session
+cannot: not *what did this cost a viewer*, but *how many of them, and how badly*.
+
+### Added
+
+- **`--viewers N`** simulates N people on variations of the same network and
+  reports the spread. Viewer 0 is the trace exactly as measured, so `--viewers 1`
+  is byte-for-byte the run this tool has always done — there is a CLI test whose
+  only job is to keep that true. Sessions fan out across goroutines and land in a
+  slice indexed by viewer, so nothing in the output depends on which finished
+  first, and two runs of the same population are byte-identical.
+- **`internal/trace.Population`**: the derivation. A per-viewer scale, a
+  per-sample jitter, and one rule that is not negotiable — **a tunnel is a tunnel
+  for everyone**: no scale applied to zero bandwidth may produce bandwidth, or the
+  one trace no adaptation can save would quietly become survivable. Both draws
+  come from `wobble`, the same fixed-seed integer hash the built-in traces are
+  generated from, so `--viewers 500` is the same 500 viewers on every machine and
+  every Go release.
+- **`internal/population`**: the runner and the report. Per check, how much of the
+  audience it went loud for — "29 of 50 viewers (58%)" is a sentence a ladder
+  decision can be argued from, where a bare `BAD` is not — plus the worst case and
+  the viewer it belongs to, so somebody can go and look at that exact session.
+  Then min, median and max for startup, frozen seconds, stalls, switch rate and
+  delivered bitrate.
+- **`--exit-on` judges the whole audience**, not its median: a gate that read only
+  the middle viewer would pass a ladder that freezes for one person in twenty.
+- **What it found on a real stream, which is the point**: Apple's `bipbop`
+  reference stream over `steps-down`, fifty viewers. Viewer 0 — the trace as
+  measured, the run every previous version of this tool would have reported —
+  **froze for nothing at all and every check came back OK**. Across the audience,
+  29 of 50 viewers rebuffered, the median lost 1.7 seconds and the worst lost
+  **69 seconds of 210** to a frozen picture. The anecdote was not wrong; it was
+  one viewer.
+
+### Fixed
+
+- **Two defects found before the tag, both by running against a real stream
+  rather than by a unit test**, which is now three releases in a row:
+  1. The headline "worst" line named the *first* viewer to cross a threshold, so
+     it read "2.4s frozen" while its own table said the worst viewer froze for 69
+     seconds. Within a severity, the worst finding is now the largest
+     measurement. A report that disagrees with itself teaches an operator to
+     distrust both halves of it.
+  2. A quiet check printed one viewer's sentence with nothing to say it was one
+     viewer's, which reads as a statement about the whole audience — the exact
+     mistake this feature exists to stop making. Those lines now say
+     `viewer 0:`.
+- **The population's scales are stratified, not drawn independently.** The obvious
+  seeding was uniform over hundreds of viewers and clumped over the first thirty:
+  a mean scale of 1.14, so `--viewers 30` was thirty people on a *better* line
+  than the one measured, with no bottom tail — the entire reason to simulate an
+  audience. The n−1 derived viewers now take evenly spaced quantiles of the scale
+  range, permuted by the hash so that the first ten viewers of two hundred are not
+  the ten worst lines. A test asserts the tails, never the mean.
+
+### Changed
+
+- **The milestones were re-targeted rather than re-numbered.** M6 shipped before
+  M2 because that is what was asked for, so M6 aims at `v0.2.0`, M2 at `v0.3.0`,
+  M3 at `v0.4.0` and M4 at `v0.5.0`. An `Mn` is an identity, not a position in a
+  queue, and the backlog says so where a reader will see it.
+- README and the Pages site gained a section on the audience, with the real
+  fifty-viewer run in it; the site's list of limits now says what is still missing
+  (percentiles) instead of claiming abrsim only models one viewer.
+
+### Known limitations
+
+- **Min, median and max — not percentiles.** A p95 over eight viewers is
+  arithmetic pretending to be a measurement. Percentiles, and findings that carry
+  the percentile they fired at, are AB-37.
+- **A viewer's scale depends on how many viewers there are**: viewer 5 of 30 is
+  not viewer 5 of 200. That is the price of stratifying, and it is stated in the
+  package comment, the README and this entry rather than left to be discovered.
+- **The population `--json` carries per-viewer summaries, not their request
+  timelines.** Two hundred timelines is not a document anybody reads; run a single
+  viewer for the full one.
+- The variation is in the *bandwidth*, and only there. Two viewers still start at
+  the same instant, fetch the same ladder and share a device: the screen is AB-40,
+  and it matters, because a phone cannot see the difference between the 1080p rung
+  and the 720p one.
+
 ## [0.1.5] — 2026-08-19
 
 The Pages site, rebuilt: three times the page it was, and every picture on it
@@ -325,7 +409,8 @@ no judgement (AB-34) — both attempts at a severity fired on healthy reference
 streams, and a measurement with an honest "no opinion" is worth more than a
 severity that cries wolf.
 
-[Unreleased]: https://github.com/Allan-Nava/abrsim/compare/v0.1.5...HEAD
+[Unreleased]: https://github.com/Allan-Nava/abrsim/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/Allan-Nava/abrsim/compare/v0.1.5...v0.2.0
 [0.1.5]: https://github.com/Allan-Nava/abrsim/compare/v0.1.4...v0.1.5
 [0.1.4]: https://github.com/Allan-Nava/abrsim/compare/v0.1.3...v0.1.4
 [0.1.3]: https://github.com/Allan-Nava/abrsim/compare/v0.1.2...v0.1.3

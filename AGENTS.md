@@ -5,7 +5,8 @@ trace, simulates what an ABR player would do, and reports what it cost the
 viewer. One static Go binary, zero dependencies. `cmd/abrsim` is the CLI,
 `internal/trace` is the network, `internal/manifest` reads the ladder,
 `internal/abr` holds the adaptation algorithms, `internal/sim` is the playback
-model, `internal/analyze` turns a run into findings, `internal/finding` is the
+model, `internal/analyze` turns a run into findings, `internal/population` runs
+the same ladder for an audience and reports the spread, `internal/finding` is the
 result model, `internal/output` renders.
 
 This file is canonical. [CLAUDE.md](CLAUDE.md) holds the same rules for Claude
@@ -172,6 +173,29 @@ it cannot consume a minor a milestone has its name on.
 - **A quoted comma in an attribute list is the classic HLS trap.** Splitting
   `CODECS="avc1.640028,mp4a.40.2"` on commas loses the audio codec and produces
   a key of `mp4a.40.2"` that a lenient parser then ignores in silence.
+- **An adaptation algorithm is stateful, so every viewer needs its own.** The
+  population runner calls `abr.New` once per viewer inside the worker: a shared
+  instance carries a throughput estimate and makes viewer 7 depend on viewer 6,
+  and the test that catches it is the one comparing a viewer inside the
+  population against the same viewer simulated alone.
+- **A hash sampled along an arithmetic progression clumps.** The first population
+  drew its per-viewer scale from `wobble(7919*v)`, which is uniform over hundreds
+  of viewers and *not* over the first thirty: the mean scale came out at 1.14, so
+  `--viewers 30` was thirty people on a better line than the measured one and the
+  bottom tail — the entire reason to simulate an audience — did not exist. The
+  scales are stratified now: n-1 evenly spaced quantiles, permuted by the hash so
+  the first ten viewers of two hundred are not the ten worst lines. The property
+  a test should assert is the *tail*, never the mean.
+- **The worst line has to be the worst case, not the first offender.** Keeping the
+  first viewer to cross a threshold put "2.4s frozen" on a headline whose own
+  distribution table said the worst viewer froze for 69 seconds. Within one
+  severity, rank by the measurement (`Finding.Value`); a report that disagrees
+  with itself teaches an operator to distrust both halves. Found by running
+  against a real stream, not by a unit test — again.
+- **A sentence taken from one viewer must name that viewer.** In a population
+  report, a quiet check still prints one line, and it reads as a statement about
+  the whole audience unless it says `viewer 0:`. That is the exact mistake the
+  feature exists to stop making.
 - **The `go` directive is the version CI builds and ships, not a floor.**
   `setup-go` with `go-version-file: go.mod` installs *exactly* what the directive
   names, so `go 1.25.0` produced binaries whose standard library carried every
@@ -245,9 +269,12 @@ be hand-edited. Items carry an invisible metadata comment:
 | `check` | the checks, traces, algorithms and flags in the source are named in `docs/index.html` and `README.md`; no flag is documented that the CLI has lost; every install command is backed by what ships it (cask, module path, image); the page stays self-contained and its assets exist (the CI gate) |
 | `names` | print what the source says exists |
 
-Milestones: **M1** the deterministic core (v0.1.0) · **M2** faithfulness
-(v0.2.0) · **M3** comparison and CI (v0.3.0) · **M4** integration (v0.4.0) ·
-**M5** project and release (ongoing). Ids are stable forever: retire an item by
+Milestones: **M1** the deterministic core (v0.1.0, shipped) · **M6** the audience
+(v0.2.0, in flight) · **M2** faithfulness (v0.3.0) · **M3** comparison and CI
+(v0.4.0) · **M4** integration (v0.5.0) · **M5** project and release (ongoing).
+M6 went before M2 because the maintainer asked for it, and the *targets* moved
+rather than the milestone numbers: an `Mn` is an identity, not a position in a
+queue. Ids are stable forever: retire an item by
 marking it done, never by deleting it and reusing the number.
 
 ## Pointers
@@ -273,6 +300,12 @@ marking it done, never by deleting it and reusing the number.
   named in the package comment rather than hidden
 - `internal/analyze/analyze.go` — every check, and every threshold in one named
   struct because each is a judgement someone is entitled to disagree with
+- `internal/population/population.go` — an audience rather than a viewer:
+  `trace.Population` derives the traces, sessions fan out across goroutines and
+  land in a slice indexed by viewer so nothing depends on which finished first,
+  and the report is min/median/max plus, per check, how much of the audience it
+  went loud for. Percentiles are AB-37 on purpose: a p95 over eight viewers is
+  arithmetic pretending to be a measurement
 - `internal/trace/builtin.go` — the generated traces; nothing here may call a
   clock or `math/rand`
 - `internal/analyze/smoke_test.go` — the reference-stream baseline (build tag

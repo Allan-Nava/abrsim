@@ -143,6 +143,8 @@ abrsim run <master.m3u8> [flags]
   --startup-buffer DUR   media buffered before playback begins (default 2s)
   --buffer-cap DUR       what the player holds before it stops requesting (default 30s)
   --play DUR             stop after this much media; 0 plays it all (default 0)
+  --viewers N            simulate N people on variations of the same network and
+                         report the spread instead of one session (default 1)
   --header 'K: V'        sent on every request; repeatable
   --timeout DUR          per-request timeout (default 30s)
   --json                 the full report, per-request timeline included
@@ -152,6 +154,55 @@ abrsim run <master.m3u8> [flags]
 
 Credentials go in `--header` values your shell reads from the environment, never
 into a flag that lands in shell history or a CI log.
+
+## An audience, not a viewer
+
+One session over one trace is an anecdote — a true one, and still an anecdote.
+`--viewers N` simulates N people on variations of the same network and reports the
+spread, because the rung you are about to delete is defended or condemned by the
+tail of an audience rather than by its median:
+
+```
+$ abrsim run https://cdn.example/master.m3u8 --trace steps-down --viewers 50
+
+50 viewers over `steps-down` with bola — the spread, not one session
+
+🔴 BAD    rebuffer    29 of 50 viewers (58%)   4 stalls, 69s frozen in 210s of playback (32.8%)
+                            ↳ worst at viewer 17 · steps-down · the picture is stopped for this long: it is the defect a viewer notices first and forgives least
+🟢 OK     ladder-gap  every viewer quiet       viewer 0: no time spent below a rung the network could have carried
+…
+
+measurement           min     median        max
+startup              0.3s       0.5s       1.0s
+frozen               0.0s       1.7s        69s
+stalls                  0          1          4
+switches/min          0.9        1.1        1.4
+delivered            1.39       1.55       1.64
+```
+
+That is a real run against Apple's public reference stream. **Viewer 0 is the
+trace exactly as measured, and it froze for nothing at all** — the single-viewer
+report on the same inputs says the stream is fine, while 29 of 50 viewers
+rebuffer and the worst loses 69 seconds of 210 to a frozen picture.
+
+- Viewer 0 is always the trace as measured, so `--viewers 1` is byte-for-byte the
+  run this tool has always done.
+- The scales are **stratified** and permuted, from the same fixed-seed hash the
+  built-in traces use: `--viewers 500` is the same 500 viewers on every machine,
+  and even `--viewers 8` spans the range instead of being eight people on a good
+  line. A viewer's scale depends on how many viewers there are — viewer 5 of 30 is
+  not viewer 5 of 200 — which is stated rather than hidden.
+- Every check speaks for every viewer; a loud one reports **how much of the
+  audience** it happened to, and names the viewer with the worst case so you can
+  go and look at that session.
+- `--exit-on` judges the whole audience. A gate that read only the median viewer
+  would pass a ladder that freezes for one person in twenty.
+- `--json` carries the distribution and a per-viewer summary, **not** two hundred
+  request timelines. Run a single viewer for the full one.
+
+Percentiles — a p95 reported before any mean, and findings that carry the
+percentile they fired at — are [AB-37](BACKLOG.md). Min, median and max are what
+a small audience can honestly support.
 
 ## What it does not model
 

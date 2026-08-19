@@ -237,6 +237,7 @@ footer p { max-width: 74ch; }
       <a href="#gap">The finding</a>
       <a href="#how" class="hide-sm">How</a>
       <a href="#checks">Checks</a>
+      <a href="#audience" class="hide-sm">Audience</a>
       <a href="#traces">Traces</a>
       <a href="#cli" class="hide-sm">CLI</a>
       <a href="#faq" class="hide-sm">FAQ</a>
@@ -260,7 +261,7 @@ footer p { max-width: 74ch; }
       <span class="badge on">zero dependencies</span>
       <span class="badge on">byte-identical runs</span>
       <span class="badge">one static Go binary</span>
-      <span class="badge">no media downloaded</span>
+      <span class="badge on">an audience, not one viewer</span>
     </div>
 
     <div class="tabs">
@@ -702,6 +703,8 @@ footer p { max-width: 74ch; }
   --startup-buffer DUR   media buffered before playback begins (default 2s)
   --buffer-cap DUR       what the player holds before it stops requesting (default 30s)
   --play DUR             stop after this much media; 0 plays it all (default 0)
+  --viewers N            simulate N people on variations of the same network and
+                         report the spread instead of one session (default 1)
   --header 'K: V'        sent on every request; repeatable
   --timeout DUR          per-request timeout (default 30s)
   --json                 the full report, per-request timeline included
@@ -776,6 +779,60 @@ footer p { max-width: 74ch; }
     </details>
   </section>
 
+  <section id="audience">
+    <p class="kicker">New in 0.2.0</p>
+    <h2>An audience, not a viewer</h2>
+    <p class="sub">
+      One session over one trace is an anecdote — a true one, and still an
+      anecdote. <code>--viewers N</code> simulates N people on variations of the
+      same network and reports the spread, because the rung you are about to
+      delete is defended or condemned by the tail of an audience rather than by
+      its median.
+    </p>
+
+    <div class="term">
+      <div class="bar"><span class="dot"></span>a real run: Apple's reference stream, fifty viewers, one staircase down</div>
+      <div class="body">
+<pre><span class="cmd-l">$ abrsim run https://cdn.example/master.m3u8 --trace steps-down --viewers 50</span>
+
+50 viewers over `steps-down` with bola — the spread, not one session
+
+<span class="bad">🔴 BAD</span>    rebuffer    29 of 50 viewers (58%)   4 stalls, 69s frozen in 210s of playback (32.8%)
+                            <span class="hint">↳ worst at viewer 17 · steps-down · the picture is stopped for this long: it is the defect a viewer notices first and forgives least</span>
+<span class="ok">🟢 OK</span>     coverage    every viewer quiet       viewer 0: stopped at 210s of playback as asked
+<span class="ok">🟢 OK</span>     ladder-gap  every viewer quiet       viewer 0: no time spent below a rung the network could have carried
+<span class="hint">…</span>
+
+measurement           min     median        max
+startup              0.3s       0.5s       1.0s
+frozen               0.0s       1.7s        69s
+stalls                  0          1          4
+switches/min          0.9        1.1        1.4
+delivered            1.39       1.55       1.64</pre>
+      </div>
+    </div>
+    <p class="caption">
+      <strong>Viewer 0 is the trace exactly as measured, and it froze for nothing
+      at all.</strong> The single-viewer report on these same inputs says the
+      stream is fine. Twenty-nine of fifty viewers rebuffer, and the worst loses
+      69 seconds of 210 to a frozen picture.
+    </p>
+
+    <div class="grid">
+      <div class="card"><h4>The same audience everywhere</h4><p>Scales are <em>stratified</em> and permuted from the same fixed-seed hash the built-in traces use, so <code>--viewers 500</code> is the same 500 viewers on any machine — and even <code>--viewers 8</code> spans the range instead of being eight people on a good line.</p></div>
+      <div class="card"><h4>Share, not just severity</h4><p>A loud check says how much of the audience it happened to — “29 of 50 viewers” is a sentence a ladder decision can be argued from — and names the viewer with the worst case so you can go and look at that session.</p></div>
+      <div class="card"><h4>The gate reads the tail</h4><p><code>--exit-on</code> judges the whole audience. One that read only the median viewer would pass a ladder that freezes for one person in twenty.</p></div>
+      <div class="card"><h4>Stated, not hidden</h4><p>A viewer's scale depends on how many viewers there are, so viewer 5 of 30 is not viewer 5 of 200. And the population <code>--json</code> carries the distribution plus a per-viewer summary, never two hundred request timelines.</p></div>
+    </div>
+    <div class="callout">
+      <p>
+        Min, median and max — not percentiles. A p95 over eight viewers is
+        arithmetic pretending to be a measurement; percentiles, and findings that
+        carry the percentile they fired at, are the next item in this milestone.
+      </p>
+    </div>
+  </section>
+
   <section id="limits">
     <p class="kicker">Honest limits</p>
     <h2>What it does not model</h2>
@@ -790,7 +847,7 @@ footer p { max-width: 74ch; }
       <li><strong>A live edge</strong> — VOD semantics only; the buffer fills as fast as the line allows.</li>
       <li><strong>The startup rule a real player applies before BOLA</strong> — dash.js runs a throughput rule until playback is established, so the rung the first segment is fetched at is BOLA’s rather than a shipped player’s.</li>
       <li><strong>DASH</strong> — HLS for now.</li>
-      <li><strong>One viewer</strong> — one session over one trace is an anecdote, and a rung is defended or condemned by the tail of an audience rather than its median. That is the milestone below.</li>
+      <li><strong>Percentiles</strong> — <code>--viewers</code> now reports an audience, but as min, median and max: a p95, and findings that carry the percentile they fired at, are the next item of the milestone below.</li>
     </ul>
     <p>
       And unless you pass <code>--sizes measured</code>, a segment with no declared
@@ -810,7 +867,7 @@ footer p { max-width: 74ch; }
     <p class="kicker">Where it is going</p>
     <h2>Milestones</h2>
     <div class="grid">
-      <div class="card"><span class="tag">M6</span><h4>The audience, not the session</h4><p>A deterministic viewer population, the p95 reported before the mean is reported at all, what each rung actually served, and the egress that ladder costs per viewer-hour.</p></div>
+      <div class="card"><span class="tag">M6 · in flight</span><h4>The audience, not the session</h4><p><code>--viewers</code> shipped in 0.2.0. Next: the p95 reported before the mean is reported at all, what each rung actually served, and the egress that ladder costs per viewer-hour.</p></div>
       <div class="card"><span class="tag">M2</span><h4>Faithfulness</h4><p>DASH input, request latency, audio on the same pipe, a live edge, and validation against published ABR results.</p></div>
       <div class="card"><span class="tag">M3</span><h4>Comparison and CI</h4><p>Sweeps across every trace and algorithm, two ladders compared, budgets as checked-in config.</p></div>
       <div class="card"><span class="tag">M4</span><h4>Integration</h4><p>Segment sizes from a segcheck report, the missing rung proposed with its cost, a GitHub Action.</p></div>
