@@ -386,3 +386,17 @@ behalf.
   signature and notarisation, which needs a paid Apple account, so this is a
   decision to buy something rather than an afternoon's work.
   <!-- ab: prio=low size=M labels=release,delivery -->
+- [x] **AB-52 — The backlog and the release, automated**: editing BACKLOG.md
+  by hand meant picking the next id by eye, writing the metadata comment from
+  memory and remembering to regenerate ROADMAP.md, and the release ritual was
+  seven commands plus two compare links edited by hand. So: backlog.sh grew add,
+  done, milestone and retarget, each of which lints the candidate before it
+  replaces anything and leaves both files byte-identical when it would not have
+  linted; and release.sh does next, changelog, prepare, check and tag, where
+  prepare writes the dated section and both links, check is every gate in one
+  command, and tag refuses while the scaffold is still in the section. Both have
+  tests that run in CI, and both found bugs in themselves first: an awk exit
+  inside a rule that let done tick an already-shipped item, a blank-line buffer
+  that ate every blank line in the section it touched, and a roadmap generated
+  from the parse taken before the edit.
+  <!-- ab: prio=high size=M labels=project,docs ver=0.2.2 -->

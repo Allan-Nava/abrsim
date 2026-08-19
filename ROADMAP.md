@@ -6,7 +6,7 @@
 > of truth for planned work. Regenerate it with `scripts/backlog.sh roadmap`
 > after editing the backlog — CI fails when the two disagree.
 
-**51 items · 17 shipped · 34 open · 7 milestones.**
+**52 items · 18 shipped · 34 open · 7 milestones.**
 
 ## At a glance
 
@@ -18,7 +18,7 @@
 | **M4** — Integration | `v0.5.0` | later | `..........` 0% | 4 | 0 |
 | **M6** — The audience, not the session | `v0.2.0` | **now** | `##........` 17% | 5 | 1 |
 | **M7** — A ladder you can defend | `v0.6.0` | later | `..........` 0% | 6 | 0 |
-| **M5** — Project and release | `ongoing` | ongoing | `####......` 43% | 4 | 3 |
+| **M5** — Project and release | `ongoing` | ongoing | `#####.....` 50% | 4 | 4 |
 
 ## Next up
 
@@ -123,7 +123,7 @@ Target `v0.6.0` · later · 6 open · 0 shipped · `..........` 0%
 
 ### M5 — Project and release
 
-Target `ongoing` · ongoing · 4 open · 3 shipped · `####......` 43%
+Target `ongoing` · ongoing · 4 open · 4 shipped · `#####.....` 50%
 
 | Item | Priority | Size | Labels | Status |
 |---|---|---|---|---|
@@ -133,6 +133,7 @@ Target `ongoing` · ongoing · 4 open · 3 shipped · `####......` 43%
 | **AB-44** — A macOS binary Gatekeeper accepts on its own merits | low | M | release,delivery | open |
 | **AB-30** — README and the docs page | high | M | docs | shipped `0.1.2` |
 | **AB-42** — An install command is a claim, so gate it | high | S | docs,release | shipped `0.1.3` |
+| **AB-52** — The backlog and the release, automated | high | M | project,docs | shipped `0.2.2` |
 | **AB-31** — Release pipeline | med | M | release | shipped `0.1.3` |
 
 ## By label
@@ -148,7 +149,7 @@ Target `ongoing` · ongoing · 4 open · 3 shipped · `####......` 43%
 | `integration` | 3 | 3 |
 | `tests` | 4 | 3 |
 | `release` | 4 | 2 |
-| `docs` | 3 | 1 |
+| `docs` | 4 | 1 |
 | `manifest` | 3 | 1 |
-| `project` | 1 | 1 |
+| `project` | 2 | 1 |
 | `trace` | 4 | 1 |

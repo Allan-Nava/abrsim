@@ -13,6 +13,20 @@
 #   scripts/backlog.sh issues     plan the GitHub issue sync (see below)
 #     --apply | --milestones M11,M12 | --body AB-n | --title AB-n
 #
+# And the half that writes. Every one of these lints the result before it replaces
+# anything, regenerates ROADMAP.md on success, and leaves both files untouched when
+# the edit would not have linted:
+#
+#   scripts/backlog.sh add <Mn> "<Name>" --prio p --size s --labels a,b [--body ...]
+#   scripts/backlog.sh done <AB-n> --ver X.Y.Z [--note "what shipped"]
+#   scripts/backlog.sh milestone <Mn> "<Title>" --target vX.Y.Z|ongoing --phase p [--intro ...]
+#   scripts/backlog.sh retarget <Mn> [--target ...] [--phase ...]
+#
+# They exist because doing this by hand meant picking the next id by eye, writing
+# the metadata comment from memory and remembering to regenerate the roadmap — three
+# ways to break a file whose ids are promised to be stable forever, none of which a
+# reviewer would notice.
+#
 # POSIX sh and awk only — this repository has no dependencies, and neither does
 # its tooling.
 #
@@ -702,6 +716,288 @@ issues_cmd() {
 	grep -E '^(CREATE|CLOSE|REOPEN|RETITLE)' "$tmp/plan.tsv" | apply_issues
 }
 
+# ---------------------------------------------------------------------------
+# The writing half.
+#
+# Shape shared by all four: build the new file in $tmp, lint *that*, and only then
+# move it into place. A backlog half-edited by a command that then failed is worse
+# than one nobody automated, because the next reader has no way to tell which half
+# is the intention.
+# ---------------------------------------------------------------------------
+
+# commit_edit <candidate> <what it did>
+commit_edit() {
+	if ! BACKLOG_FILE="$1" ROADMAP_FILE="$tmp/roadmap-probe.md" "$0" lint >/dev/null 2>"$tmp/lint.err"; then
+		echo "backlog.sh: the edit would not lint, so nothing was written:" >&2
+		sed 's/^/  /' "$tmp/lint.err" >&2
+		exit 1
+	fi
+	cat "$1" >"$backlog"
+	# data.tsv was parsed before the edit, so generating from it would describe
+	# the file as it used to be — a roadmap that is stale the instant it is
+	# written, and CI would be the one to notice.
+	parse >"$tmp/data.tsv"
+	generate >"$tmp/ROADMAP.new"
+	cat "$tmp/ROADMAP.new" >"$roadmap"
+	echo "$2"
+	echo "wrote BACKLOG.md and ROADMAP.md — $(stats)"
+}
+
+# wrap <indent> <first-prefix> — wrap stdin to 80 columns, awk only.
+wrap() {
+	awk -v ind="$1" -v first="$2" '
+	BEGIN { RS = "\0"; width = 80 }
+	{
+		gsub(/[ \t\n]+/, " ")
+		sub(/^ /, ""); sub(/ $/, "")
+		n = split($0, w, " ")
+		line = first
+		pad = ind
+		for (i = 1; i <= n; i++) {
+			cand = (line == first && line ~ / $/) ? line w[i] : line " " w[i]
+			if (line == first) cand = line w[i]
+			if (length(cand) > width && line != first) {
+				print line
+				line = pad w[i]
+			} else if (length(cand) > width && line == first) {
+				print line w[i]
+				line = pad
+			} else {
+				line = cand
+			}
+		}
+		if (line != pad) print line
+	}'
+}
+
+need_value() {  # need_value <flag> <value>
+	if [ -z "${2:-}" ]; then
+		echo "backlog.sh: $1 needs a value" >&2
+		exit 2
+	fi
+}
+
+milestone_exists() { grep -q "^## $1 " "$backlog"; }
+
+add_cmd() {
+	ms=${1:-}; shift 2>/dev/null || true
+	name=${1:-}; shift 2>/dev/null || true
+	prio=""; size=""; labels=""; body=""
+	while [ $# -gt 0 ]; do
+		case "$1" in
+		--prio)   need_value --prio "${2:-}"; prio=$2; shift 2 ;;
+		--size)   need_value --size "${2:-}"; size=$2; shift 2 ;;
+		--labels) need_value --labels "${2:-}"; labels=$2; shift 2 ;;
+		--body)   need_value --body "${2:-}"; body=$2; shift 2 ;;
+		--body-file)
+			need_value --body-file "${2:-}"
+			body=$(cat "$2"); shift 2 ;;
+		-) body=$(cat); shift ;;
+		*) echo "backlog.sh add: unexpected argument $1" >&2; exit 2 ;;
+		esac
+	done
+	if [ -z "$ms" ] || [ -z "$name" ] || [ -z "$prio" ] || [ -z "$size" ] || [ -z "$labels" ]; then
+		echo 'usage: scripts/backlog.sh add <Mn> "<Name>" --prio p --size s --labels a,b [--body "..."]' >&2
+		exit 2
+	fi
+	case "$ms" in
+	M[0-9]*) ;;
+	*) echo "backlog.sh add: $ms is not a milestone id" >&2; exit 2 ;;
+	esac
+	if ! milestone_exists "$ms"; then
+		echo "backlog.sh add: no milestone $ms in BACKLOG.md" >&2
+		exit 2
+	fi
+	[ -n "$body" ] || body="TODO: what it is, why it earns its place, and what it has to touch."
+
+	# The next id is one past the highest that exists. Never a gap that was left
+	# by a retired item: ids are stable forever, and reusing one silently
+	# reassigns every commit message that mentions it.
+	next=$(awk -F'\t' '$1 == "I" { if ($4 + 0 > max) max = $4 + 0 } END { print max + 1 }' "$tmp/data.tsv")
+	id="AB-$next"
+
+	{
+		printf '%s' "$body" | wrap "  " "- [ ] **$id — $name**: "
+		echo "  <!-- ab: prio=$prio size=$size labels=$labels -->"
+	} >"$tmp/item.md"
+
+	# Insert after the last non-blank line of the milestone's own section. Doing
+	# it with a line number rather than by streaming the file keeps the blank
+	# lines exactly where they were: the first attempt buffered them and ate
+	# every one inside the section it touched.
+	at=$(awk -v ms="$ms" '
+		/^## / { inms = ($2 == ms); next }
+		inms && $0 != "" { last = NR }
+		END { print last }
+	' "$backlog")
+	if [ -z "$at" ] || [ "$at" -eq 0 ] 2>/dev/null; then
+		# An empty milestone: put the item straight after its heading.
+		at=$(awk -v ms="$ms" '/^## / && $2 == ms { print NR; exit }' "$backlog")
+	fi
+	awk -v at="$at" -v itemfile="$tmp/item.md" '
+	{ print }
+	NR == at {
+		while ((getline line < itemfile) > 0) print line
+		close(itemfile)
+	}
+	' "$backlog" >"$tmp/BACKLOG.new"
+
+	commit_edit "$tmp/BACKLOG.new" "added $id — $name  ($ms, prio=$prio size=$size labels=$labels)"
+}
+
+done_cmd() {
+	id=${1:-}; shift 2>/dev/null || true
+	ver=""; note=""
+	while [ $# -gt 0 ]; do
+		case "$1" in
+		--ver)  need_value --ver "${2:-}"; ver=$2; shift 2 ;;
+		--note) need_value --note "${2:-}"; note=$2; shift 2 ;;
+		*) echo "backlog.sh done: unexpected argument $1" >&2; exit 2 ;;
+		esac
+	done
+	if [ -z "$id" ] || [ -z "$ver" ]; then
+		echo 'usage: scripts/backlog.sh done <AB-n> --ver X.Y.Z [--note "what shipped"]' >&2
+		exit 2
+	fi
+	case "$ver" in
+	[0-9]*.[0-9]*.[0-9]* | unreleased) ;;
+	*) echo "backlog.sh done: --ver is X.Y.Z or unreleased, not $ver" >&2; exit 2 ;;
+	esac
+	if ! awk -F'\t' -v id="$id" '$1 == "I" && $3 == id { found = 1 } END { exit found ? 0 : 1 }' "$tmp/data.tsv"; then
+		echo "backlog.sh done: no $id in BACKLOG.md" >&2
+		exit 2
+	fi
+	# `exit 0` inside a rule still runs END, whose `exit 1` then wins — the first
+	# version of this guard never fired for that reason, and `done` cheerfully
+	# reported success on an item that was already ticked. Set a flag, exit once.
+	if awk -F'\t' -v id="$id" '$1 == "I" && $3 == id && $5 == "done" { d = 1 } END { exit d ? 0 : 1 }' "$tmp/data.tsv"; then
+		echo "backlog.sh done: $id is already done — a shipped item stays shipped" >&2
+		exit 2
+	fi
+
+	printf '%s' "$note" | wrap "  " "  " >"$tmp/note.md"
+
+	awk -v id="$id" -v ver="$ver" -v notefile="$tmp/note.md" -v hasnote="${note:+1}" '
+	index($0, "**" id " —") && /^- \[ \] / { initem = 1; sub(/^- \[ \] /, "- [x] "); print; next }
+	initem && /<!-- ab:/ {
+		if (hasnote != "") {
+			while ((getline line < notefile) > 0) print line
+			close(notefile)
+		}
+		sub(/ -->/, " ver=" ver " -->")
+		print
+		initem = 0
+		next
+	}
+	{ print }
+	' "$backlog" >"$tmp/BACKLOG.new"
+
+	# A command that reports success while changing nothing is the worst of the
+	# three outcomes: the caller believes the backlog now says something it does
+	# not.
+	if cmp -s "$backlog" "$tmp/BACKLOG.new"; then
+		echo "backlog.sh done: $id was found but nothing changed — the item's line does not match the shape this can edit" >&2
+		exit 1
+	fi
+	commit_edit "$tmp/BACKLOG.new" "ticked $id, shipped in $ver"
+}
+
+milestone_cmd() {
+	ms=${1:-}; shift 2>/dev/null || true
+	title=${1:-}; shift 2>/dev/null || true
+	target=""; phase=""; intro=""
+	while [ $# -gt 0 ]; do
+		case "$1" in
+		--target) need_value --target "${2:-}"; target=$2; shift 2 ;;
+		--phase)  need_value --phase "${2:-}"; phase=$2; shift 2 ;;
+		--intro)  need_value --intro "${2:-}"; intro=$2; shift 2 ;;
+		*) echo "backlog.sh milestone: unexpected argument $1" >&2; exit 2 ;;
+		esac
+	done
+	if [ -z "$ms" ] || [ -z "$title" ] || [ -z "$target" ] || [ -z "$phase" ]; then
+		echo 'usage: scripts/backlog.sh milestone <Mn> "<Title>" --target vX.Y.Z|ongoing --phase shipped|now|next|later|ongoing [--intro "..."]' >&2
+		exit 2
+	fi
+	case "$ms" in M[0-9]*) ;; *) echo "backlog.sh milestone: $ms is not a milestone id" >&2; exit 2 ;; esac
+	if milestone_exists "$ms"; then
+		echo "backlog.sh milestone: $ms already exists — milestone ids are identities, not slots" >&2
+		exit 2
+	fi
+	case "$target" in
+	ongoing | v[0-9]*.[0-9]*.[0-9]*) ;;
+	*) echo "backlog.sh milestone: --target is vX.Y.Z or ongoing, not $target" >&2; exit 2 ;;
+	esac
+	case "$phase" in
+	shipped | now | next | later | ongoing) ;;
+	*) echo "backlog.sh milestone: --phase is shipped|now|next|later|ongoing, not $phase" >&2; exit 2 ;;
+	esac
+
+	{
+		echo "## $ms — $title <!-- ms: target=$target phase=$phase -->"
+		echo ""
+		if [ -n "$intro" ]; then
+			printf '%s' "$intro" | wrap "" ""
+			echo ""
+		fi
+	} >"$tmp/ms.md"
+
+	# Before the first ongoing milestone, so the housekeeping section stays last;
+	# at the end of the file when there is none.
+	anchor=$(awk '/^## M[0-9]+ /  && /phase=ongoing/ { print NR; exit }' "$backlog")
+	if [ -n "$anchor" ]; then
+		awk -v at="$anchor" -v msfile="$tmp/ms.md" 'NR == at {
+			while ((getline line < msfile) > 0) print line
+			close(msfile)
+		} { print }' "$backlog" >"$tmp/BACKLOG.new"
+	else
+		{ cat "$backlog"; echo ""; cat "$tmp/ms.md"; } >"$tmp/BACKLOG.new"
+	fi
+
+	commit_edit "$tmp/BACKLOG.new" "created $ms — $title  (target=$target phase=$phase)"
+}
+
+retarget_cmd() {
+	ms=${1:-}; shift 2>/dev/null || true
+	target=""; phase=""
+	while [ $# -gt 0 ]; do
+		case "$1" in
+		--target) need_value --target "${2:-}"; target=$2; shift 2 ;;
+		--phase)  need_value --phase "${2:-}"; phase=$2; shift 2 ;;
+		*) echo "backlog.sh retarget: unexpected argument $1" >&2; exit 2 ;;
+		esac
+	done
+	if [ -z "$ms" ] || { [ -z "$target" ] && [ -z "$phase" ]; }; then
+		echo 'usage: scripts/backlog.sh retarget <Mn> [--target vX.Y.Z|ongoing] [--phase shipped|now|next|later|ongoing]' >&2
+		exit 2
+	fi
+	if ! milestone_exists "$ms"; then
+		echo "backlog.sh retarget: no milestone $ms in BACKLOG.md" >&2
+		exit 2
+	fi
+	if [ -n "$target" ]; then
+		case "$target" in
+		ongoing | v[0-9]*.[0-9]*.[0-9]*) ;;
+		*) echo "backlog.sh retarget: --target is vX.Y.Z or ongoing, not $target" >&2; exit 2 ;;
+		esac
+	fi
+	if [ -n "$phase" ]; then
+		case "$phase" in
+		shipped | now | next | later | ongoing) ;;
+		*) echo "backlog.sh retarget: --phase is shipped|now|next|later|ongoing, not $phase" >&2; exit 2 ;;
+		esac
+	fi
+
+	awk -v ms="$ms" -v target="$target" -v phase="$phase" '
+	$0 ~ "^## " ms " " {
+		if (target != "") { sub(/target=[^ ]+/, "target=" target) }
+		if (phase  != "") { sub(/phase=[^ ->]+/, "phase=" phase) }
+	}
+	{ print }
+	' "$backlog" >"$tmp/BACKLOG.new"
+
+	commit_edit "$tmp/BACKLOG.new" "retargeted $ms${target:+ target=$target}${phase:+ phase=$phase}"
+}
+
 case "${1:-lint}" in
 lint)
 	lint
@@ -731,9 +1027,29 @@ issues)
 	shift
 	issues_cmd "$@"
 	;;
+add)
+	shift
+	add_cmd "$@"
+	;;
+done)
+	shift
+	done_cmd "$@"
+	;;
+milestone)
+	shift
+	milestone_cmd "$@"
+	;;
+retarget)
+	shift
+	retarget_cmd "$@"
+	;;
 *)
 	echo "usage: scripts/backlog.sh [lint|roadmap|check|stats|next [n]]" >&2
 	echo "       scripts/backlog.sh issues [--apply] [--milestones M11,M12] [--body AB-n]" >&2
+	echo '       scripts/backlog.sh add <Mn> "<Name>" --prio p --size s --labels a,b [--body "..."]' >&2
+	echo '       scripts/backlog.sh done <AB-n> --ver X.Y.Z [--note "..."]' >&2
+	echo '       scripts/backlog.sh milestone <Mn> "<Title>" --target vX.Y.Z|ongoing --phase p [--intro "..."]' >&2
+	echo '       scripts/backlog.sh retarget <Mn> [--target ...] [--phase ...]' >&2
 	exit 2
 	;;
 esac

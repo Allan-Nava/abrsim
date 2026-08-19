@@ -7,6 +7,64 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [0.2.2] — 2026-08-19
+
+The backlog and the release stopped being a paragraph in `AGENTS.md` that somebody
+follows by hand (AB-52). This entry, its section heading, both of its compare links
+and the `AB-52` tick above it were produced by the scripts it is about.
+
+### Added
+
+- **`backlog.sh` grew the half that writes**: `add` (next free id, metadata,
+  wrapped prose, inserted inside the right milestone), `done` (tick and stamp the
+  release, optionally appending what shipped), `milestone` and `retarget`. Doing
+  this by hand meant picking the next id by eye, writing the `<!-- ab: … -->`
+  comment from memory and remembering to regenerate `ROADMAP.md` — three ways to
+  break a file whose ids are promised to be stable forever, and none of them
+  something a reviewer would catch.
+- **Every write is transactional**: the candidate is built in a temporary file and
+  **linted there**; only a candidate that lints replaces `BACKLOG.md`, and then
+  `ROADMAP.md` is regenerated in the same breath. A refused write leaves both files
+  byte-identical, which is the property the test suite spends most of its
+  assertions on. A backlog half-edited by a command that then failed is worse than
+  one nobody automated, because the next reader cannot tell which half was the
+  intention.
+- **`scripts/release.sh`**: `next` (patch/minor arithmetic off the latest tag),
+  `changelog` (the top released version, and a refusal if its section is
+  unfinished), `prepare` (the dated section plus **both** compare links — those
+  were hand-edited six times before this existed), `check` (backlog gates, tooling
+  tests, `docs.sh`, `goreleaser check`, `gofmt`, `vet`, `go test -race`, and a
+  confirmation that the changelog is written, in one command) and `tag` (re-runs
+  every gate, refuses an existing tag, commits with the message file it is given,
+  tags that commit, and never pushes).
+- **`scripts/backlog_test.sh` (48 checks) and `scripts/release_test.sh` (18)**,
+  both POSIX sh, both in CI, both against fixtures — no git writes, no network, and
+  no chance of overwriting this repository's own files. The CI step runs them under
+  the runner's `/bin/sh`, which is dash rather than the bash-in-POSIX-mode a Mac
+  develops against.
+
+### Fixed
+
+Three bugs in the new tooling, each found by its own tests before it touched
+anything real:
+
+- **`awk`'s `exit` inside a rule still runs `END`**, whose `exit 1` then wins — so
+  the guard against re-ticking an already-shipped item never fired, and `done`
+  reported success on an item it had not changed. A command that claims success
+  while changing nothing is the worst of the three outcomes: the caller believes
+  the file now says something it does not, so `done` also refuses when its edit
+  produced a byte-identical file.
+- **The first `add` ate every blank line in the section it touched**, because it
+  buffered blanks and re-emitted them with an off-by-one `substr`. Insertion is by
+  line number now.
+- **The roadmap was generated from the parse taken *before* the edit**, so an
+  `add` wrote a `ROADMAP.md` that was stale the instant it was written and CI would
+  have been the one to notice.
+- A test-harness trap worth writing down: in POSIX sh a variable assignment
+  prefixed to a **function** call stays in effect after the function returns, so
+  `LAST=v0.9.9 assert_eq …` leaked into every later test and three `prepare` cases
+  were quietly asserting against the wrong version.
+
 ## [0.2.1] — 2026-08-19
 
 ### Added
@@ -432,7 +490,8 @@ no judgement (AB-34) — both attempts at a severity fired on healthy reference
 streams, and a measurement with an honest "no opinion" is worth more than a
 severity that cries wolf.
 
-[Unreleased]: https://github.com/Allan-Nava/abrsim/compare/v0.2.1...HEAD
+[Unreleased]: https://github.com/Allan-Nava/abrsim/compare/v0.2.2...HEAD
+[0.2.2]: https://github.com/Allan-Nava/abrsim/compare/v0.2.1...v0.2.2
 [0.2.1]: https://github.com/Allan-Nava/abrsim/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/Allan-Nava/abrsim/compare/v0.1.5...v0.2.0
 [0.1.5]: https://github.com/Allan-Nava/abrsim/compare/v0.1.4...v0.1.5

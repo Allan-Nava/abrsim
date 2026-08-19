@@ -237,7 +237,20 @@ errors were found there on the first run and none of them by a unit test — see
 [AGENTS.md](AGENTS.md) for why that is the rule rather than the exception.
 
 [BACKLOG.md](BACKLOG.md) is the source of truth for planned work;
-[ROADMAP.md](ROADMAP.md) is generated from it.
+[ROADMAP.md](ROADMAP.md) is generated from it. Both are edited through the tooling
+rather than by hand, and so is a release:
+
+```sh
+scripts/backlog.sh add M2 "Short name" --prio high --size M --labels sim --body "why it earns its place."
+scripts/backlog.sh done AB-13 --ver 0.3.0
+scripts/release.sh prepare patch   # scaffolds the CHANGELOG section and its links
+scripts/release.sh check           # every gate in one command
+scripts/release.sh tag --commit /tmp/msg.txt
+```
+
+Every write lints before it lands and regenerates `ROADMAP.md`; nothing pushes.
+The tooling has its own tests — `scripts/backlog_test.sh`, `scripts/release_test.sh`,
+POSIX sh like everything in `scripts/` — and they run in CI.
 
 ## License
 

@@ -24,11 +24,12 @@ Five rules that are violated most often and cost most when they are:
   without being asked. **Never `git push`** — the tags and the branch go out when
   the maintainer says so. No `Co-Authored-By` trailers.
 
-The release ritual, in order: `scripts/backlog.sh lint && scripts/backlog.sh check`
-· `scripts/docs.sh check` · `gofmt -l ./cmd ./internal` · `go vet ./...` · `go test -race ./...` · the smoke
-test against real streams · tick the `AB-n` in `BACKLOG.md` and regenerate
-`ROADMAP.md` · write the `CHANGELOG.md` section · commit · `git tag -a vX.Y.Z -m
-"Release X.Y.Z"`. A commit whose `ROADMAP.md` is stale fails CI; a commit with no
+The release ritual is four commands, not a paragraph:
+`scripts/backlog.sh done AB-n --ver X.Y.Z` (or `add` / `milestone` / `retarget` —
+never edit `BACKLOG.md` by hand) · `scripts/release.sh prepare patch` · write the
+`CHANGELOG.md` entries, which is the only part no script can do · `scripts/release.sh
+check` · the smoke test against real streams · `scripts/release.sh tag --commit
+<msgfile>`. A commit whose `ROADMAP.md` is stale fails CI; a commit with no
 tag breaks the one promise this repository makes about its own history. Pushing
 the tag is the maintainer's call and is what publishes the archives and the
 Homebrew cask — so a tag is cheap locally and consequential once pushed.

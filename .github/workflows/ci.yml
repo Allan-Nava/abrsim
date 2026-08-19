@@ -43,6 +43,16 @@ jobs:
           ./scripts/backlog.sh lint
           ./scripts/backlog.sh check
 
+      # The tooling that *writes* BACKLOG.md and CHANGELOG.md has its own tests,
+      # and they are cheap: a bad `add` renumbers an item whose id every commit
+      # message references, and a bad `prepare` ships a tag whose notes describe
+      # a different version. Both run under /bin/sh, which on this runner is dash
+      # rather than the bash-in-posix-mode a mac develops against.
+      - name: tooling tests
+        run: |
+          sh ./scripts/backlog_test.sh
+          sh ./scripts/release_test.sh
+
       # The Pages site and the README name the checks, traces, algorithms and
       # flags the binary has. Renaming one and forgetting the page is the drift
       # this catches; it has no network and no dependencies, like the rest.

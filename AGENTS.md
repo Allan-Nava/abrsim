@@ -90,21 +90,34 @@ Code — when they disagree, this file wins and the other gets fixed.
 
 ## The release ritual (every commit)
 
-Run in this order; a step that fails stops the commit rather than getting a
-follow-up commit.
+```sh
+scripts/backlog.sh done AB-n --ver X.Y.Z     # or add / milestone / retarget
+scripts/release.sh prepare patch             # or minor; scaffolds the section + links
+$EDITOR CHANGELOG.md                         # the only part a script cannot do
+scripts/release.sh check                     # every gate, in one command
+go build -o /tmp/abrsim ./cmd/abrsim         # then the real streams, below
+ABRSIM_BIN=/tmp/abrsim go test -tags smoke -run TestSmokeReferenceStreams ./internal/analyze/ -v
+scripts/release.sh tag --commit /tmp/msg.txt # verifies again, commits, tags. No push
+```
 
-1. `scripts/backlog.sh lint && scripts/backlog.sh check` — the `AB-n` ticked and
-   `ROADMAP.md` regenerated from `BACKLOG.md`. A stale roadmap fails CI.
-   `scripts/docs.sh check` — the site and the README name what the binary has.
-2. `gofmt -l ./cmd ./internal` (empty), `go vet ./...`, `go test -race ./...`.
-3. **Real streams**: build the binary and run the smoke test
-   (`go test -tags smoke ./internal/analyze`). This is where the design gets
-   corrected, not where it gets confirmed.
-4. The `CHANGELOG.md` section for the version about to be tagged: dated, Keep a
-   Changelog headings, every entry naming its `AB-n`, and the `Unreleased`/
-   version compare links at the foot of the file updated.
-5. Commit — a subject in the imperative naming the `AB-n` — then
-   `git tag -a vX.Y.Z -m "Release X.Y.Z"` **on that commit**.
+What each step is for, since a script that nobody understands is a ritual again:
+
+1. `release.sh prepare` writes the dated `## [X.Y.Z]` heading, a scaffold entry and
+   **both** compare links at the foot of the file. The links were hand-edited six
+   times before this existed, and hand-editing two lines that have to agree with a
+   tag is how a changelog ends up describing a release that does not exist.
+2. **Writing the entries is yours.** `check` and `tag` both refuse while the
+   scaffold's `TODO` is still there or the section has no entries: a release whose
+   notes say TODO is a release nobody can read.
+3. `release.sh check` runs the backlog lint and staleness gates, the tooling tests,
+   `docs.sh`, `goreleaser check`, `gofmt`, `go vet` and `go test -race`, then
+   confirms the changelog is written. It prints the smoke-test command rather than
+   running it, because that one needs the network and is the one gate that has
+   found real design errors.
+4. **Real streams before the tag.** Three of this project's design errors were
+   found there and none by a unit test.
+5. `release.sh tag` re-runs every gate, refuses if `vX.Y.Z` already exists,
+   commits with the message file you give it and tags **that** commit.
 6. Stop. The push is the maintainer's (`git push origin main --follow-tags`) —
    and the push is what *publishes*: `.github/workflows/release.yml` fires on the
    tag, runs the smoke test against the reference streams again, then goreleaser
@@ -261,6 +274,32 @@ be hand-edited. Items carry an invisible metadata comment:
 | `check` | fail if `ROADMAP.md` is stale (the CI gate) |
 | `stats` | one-line summary |
 | `next [n]` | the n highest-priority open items |
+| `add <Mn> "<Name>" --prio p --size s --labels a,b [--body ...]` | append an item with the next free id |
+| `done <AB-n> --ver X.Y.Z [--note ...]` | tick it and stamp the release it shipped in |
+| `milestone <Mn> "<Title>" --target vX.Y.Z\|ongoing --phase p [--intro ...]` | create a milestone before the ongoing one |
+| `retarget <Mn> [--target ...] [--phase ...]` | move a milestone's target or phase |
+
+**Use those four rather than editing `BACKLOG.md` by hand.** Each one lints the
+result before it replaces anything, regenerates `ROADMAP.md` on success, and leaves
+both files byte-identical when the edit would not have linted. By hand meant
+picking the next id by eye, writing the metadata comment from memory and
+remembering to regenerate the roadmap: three ways to break a file whose ids are
+promised to be stable forever, none of which a reviewer would catch.
+`scripts/backlog_test.sh` covers them and runs in CI.
+
+`scripts/release.sh` — the ritual as a script rather than a paragraph:
+
+| Command | What it does |
+|---|---|
+| `next <patch\|minor\|X.Y.Z>` | the version that bump gives, from the latest tag |
+| `changelog` | print the top released version, and refuse if its section is unfinished |
+| `prepare <patch\|minor\|X.Y.Z>` | scaffold that section and **both** of its compare links |
+| `check` | every gate below in one command, no writes |
+| `tag [--commit <msgfile>]` | verify, optionally commit, then tag. Never pushes |
+
+`scripts/release_test.sh` covers the version arithmetic and the changelog surgery
+against fixtures, because those are the parts that can ship a tag whose notes
+describe a different version.
 
 `scripts/docs.sh`:
 
