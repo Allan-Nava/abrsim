@@ -7,6 +7,24 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [0.3.2] — 2026-08-19
+
+### Fixed
+
+- **`backlog.sh lint` was advising something that would break the file.** It noted
+  `AB-36 is done inside M6 (now) — consider marking the milestone shipped` on every
+  CI run, once per shipped item, while four of M6's items were still open. Marking
+  it shipped then fails lint with "open inside a milestone marked shipped": advice
+  that, followed, breaks the gate that gave it.
+  The rule was written when a milestone completed all at once. Milestones now ship
+  **item by item, one release at a time** — M6 delivered AB-36 in 0.2.0 and AB-37 in
+  0.3.0 — so the note is counted per milestone and fires only in the case that is
+  actually actionable: every item done and nobody moved the phase. It now names the
+  command to fix it, and it is emitted in sorted order, because a note ordered by
+  however awk walks its hash differs between runs of the same file.
+- Nothing else changed: `52 items across 7 milestones` is the state, and CI's
+  backlog step was passing all along — `note:` goes to stdout and exits 0.
+
 ## [0.3.1] — 2026-08-19
 
 `release.sh` was the one script CI never ran (AB-52 follow-up). Its gate list and
@@ -562,7 +580,8 @@ no judgement (AB-34) — both attempts at a severity fired on healthy reference
 streams, and a measurement with an honest "no opinion" is worth more than a
 severity that cries wolf.
 
-[Unreleased]: https://github.com/Allan-Nava/abrsim/compare/v0.3.1...HEAD
+[Unreleased]: https://github.com/Allan-Nava/abrsim/compare/v0.3.2...HEAD
+[0.3.2]: https://github.com/Allan-Nava/abrsim/compare/v0.3.1...v0.3.2
 [0.3.1]: https://github.com/Allan-Nava/abrsim/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/Allan-Nava/abrsim/compare/v0.2.2...v0.3.0
 [0.2.2]: https://github.com/Allan-Nava/abrsim/compare/v0.2.1...v0.2.2

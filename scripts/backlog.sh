@@ -205,8 +205,16 @@ lint() {
 		if (ver != "" && ver != "unreleased" && ver !~ /^[0-9]+\.[0-9]+\.[0-9]+$/) err(id ": ver `" ver "` is not X.Y.Z or unreleased")
 
 		if (msphase[ms] == "shipped" && status == "open") err(id " is open inside " ms ", which is marked shipped")
-		if (msphase[ms] != "shipped" && msphase[ms] != "ongoing" && status == "done" && ver != "unreleased")
-			warn = warn "\n  " id " is done inside " ms " (" msphase[ms] ") — consider marking the milestone shipped"
+
+		# Counted per milestone and judged in END. Judging it per *item* advised
+		# marking M6 shipped because AB-36 was done, while four of its items were
+		# still open — advice that, followed, makes lint fail with "open inside a
+		# milestone marked shipped". A milestone now ships item by item, one
+		# release at a time, so the only actionable case is the one where every
+		# item is done and nobody moved the phase. A note that cries wolf on
+		# every CI run is worse than no note.
+		if (status == "done") msdone[ms]++
+		else msopen[ms]++
 		next
 	}
 
@@ -214,6 +222,18 @@ lint() {
 		for (i = 1; i <= max; i++)
 			if (!("AB-" i in seen)) err("AB-" i " is missing — ids run 1..N with no gaps; retire an item with status done, never by deleting it")
 		if (bad) { printf "\n%d problem(s) in BACKLOG.md\n", bad > "/dev/stderr"; exit 1 }
+		for (ms in msdone)
+			if (msopen[ms] == 0 && msphase[ms] != "shipped" && msphase[ms] != "ongoing")
+				finished[ms] = 1
+		# Sorted, because a note ordered by however awk walks its hash is a note
+		# that differs between runs of the same file.
+		n = 0
+		for (ms in finished) sorted[++n] = ms
+		for (i = 1; i < n; i++)
+			for (j = i + 1; j <= n; j++)
+				if (sorted[j] < sorted[i]) { t = sorted[i]; sorted[i] = sorted[j]; sorted[j] = t }
+		for (i = 1; i <= n; i++)
+			warn = warn "\n  " sorted[i] " is finished — every item is done, so mark it `phase=shipped`: scripts/backlog.sh retarget " sorted[i] " --phase shipped"
 		if (warn != "") printf "note:%s\n", warn
 		printf "BACKLOG.md OK — %d items across %d milestones\n", nitems, nms
 	}

@@ -180,6 +180,28 @@ assert_ok "a retargeted backlog lints" run lint
 assert_fails "retarget refuses an unknown milestone" run retarget M42 --target v0.5.0
 assert_fails "retarget refuses a bad phase" run retarget M2 --phase whenever
 
+echo "== the note about a finished milestone =="
+fixture
+assert_ok "a milestone in flight with one item shipped lints" run done AB-2 --ver 0.2.0
+checks=$((checks + 1))
+if run lint >"$tmp/lint.out" 2>&1 && ! grep -q "consider marking" "$tmp/lint.out"; then
+	echo "ok   no advice to ship a milestone that still has open items"
+else
+	fail "lint advises shipping M2 while AB-3 is still open — advice that, followed, makes lint fail"
+	sed 's/^/       /' "$tmp/lint.out" >&2
+fi
+
+# The actionable case: everything in the milestone is done and nobody moved the
+# phase. That is worth one line.
+assert_ok "close the last open item too" run done AB-3 --ver 0.2.0
+checks=$((checks + 1))
+if run lint >"$tmp/lint.out" 2>&1 && grep -q "M2 is finished" "$tmp/lint.out"; then
+	echo "ok   a milestone whose every item is done says so"
+else
+	fail "a finished milestone produced no note"
+	sed 's/^/       /' "$tmp/lint.out" >&2
+fi
+
 echo "== a write that would not lint is not a write =="
 fixture
 cp "$tmp/BACKLOG.md" "$tmp/before.md"
