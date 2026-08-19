@@ -278,6 +278,53 @@ invent a measurement, one more axis.
   no opinion beats a grade nobody can defend.
   <!-- ab: prio=med size=M labels=check,abr -->
 
+## M7 — A ladder you can defend <!-- ms: target=v0.6.0 phase=later -->
+
+Everything up to here **names** a defect. An encoding team then has to decide what
+to do about it, and that decision — add a rung, drop one, move two — is where the
+money is and where this tool currently stops. `ladder-gap` says a rung is missing;
+AB-26 proposes one rung; neither answers *what should this ladder be*.
+
+This milestone searches. It needs M6's audience to score against (a ladder tuned
+to one viewer is tuned to nothing) and M3's budgets to search under, so it comes
+after both — and it inherits their honesty: a recommendation is a judgement
+someone is entitled to disagree with, so the arithmetic behind it has to be on the
+table, and the trade-off has to be shown rather than resolved on the operator's
+behalf.
+
+- [ ] **AB-46 — Candidate ladders, generated deterministically**: from the ladder
+  in hand, enumerate the neighbours worth trying — a rung inserted at a
+  geometrically sensible bitrate, a rung dropped, a rung moved, the top capped —
+  bounded so the search is finite and seeded so it is the same search twice. No
+  `math/rand` and no clock, like everything else that reaches the output. This is
+  the piece every other item here consumes. <!-- ab: prio=high size=M labels=check,output -->
+- [ ] **AB-47 — Score a candidate over an audience, not a session**: each
+  candidate ladder run over the viewer population (AB-36) across a set of traces,
+  scored on what M6 measures — frozen seconds, startup, the QoE of AB-41, the
+  egress of AB-39. The search is exactly as trustworthy as those numbers, which is
+  why it waits for them rather than inventing a score of its own.
+  <!-- ab: prio=high size=L labels=abr,check -->
+- [ ] **AB-48 — The frontier, never “the best ladder”**: report the Pareto front of
+  viewer cost against delivery cost — rebuffer seconds and QoE against gigabytes
+  of egress and rungs to encode — and let the operator pick. Naming a single
+  winner hides a judgement that is not ours to make: what a gigabyte is worth is a
+  commercial question and abrsim does not know the contract.
+  <!-- ab: prio=high size=M labels=output,check -->
+- [ ] **AB-49 — The smallest ladder that still passes**: given AB-23's budgets, the
+  fewest rungs that keep every one of them met. The rung-removal question asked in
+  reverse, and the one an encoding bill is actually made of.
+  <!-- ab: prio=med size=M labels=check,cli -->
+- [ ] **AB-50 — Explain the recommendation in the units of the complaint**: for
+  every proposed change, the seconds of rebuffer it removes, the share of playback
+  it moves and from which rung to which, per trace. A recommendation an operator
+  cannot argue with is one they are being asked to trust, and this project does not
+  ask for trust. <!-- ab: prio=high size=M labels=output,check -->
+- [ ] **AB-51 — Say when the recommendation is overfitted**: a ladder searched
+  against six traces is a ladder tuned to six traces. Hold traces out of the
+  search, score the winner against them too, and say plainly when it only wins on
+  the ones it was tuned on — the difference between a recommendation and a
+  coincidence. <!-- ab: prio=high size=M labels=tests,check -->
+
 ## M5 — Project and release <!-- ms: target=ongoing phase=ongoing -->
 
 - [ ] **AB-29 — CI gates**: `gofmt`, `go vet`, tests with a coverage floor,

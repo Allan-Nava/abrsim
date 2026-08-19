@@ -6,7 +6,7 @@
 > of truth for planned work. Regenerate it with `scripts/backlog.sh roadmap`
 > after editing the backlog — CI fails when the two disagree.
 
-**45 items · 17 shipped · 28 open · 6 milestones.**
+**51 items · 17 shipped · 34 open · 7 milestones.**
 
 ## At a glance
 
@@ -17,6 +17,7 @@
 | **M3** — Comparison and CI | `v0.4.0` | later | `..........` 0% | 4 | 0 |
 | **M4** — Integration | `v0.5.0` | later | `..........` 0% | 4 | 0 |
 | **M6** — The audience, not the session | `v0.2.0` | **now** | `##........` 17% | 5 | 1 |
+| **M7** — A ladder you can defend | `v0.6.0` | later | `..........` 0% | 6 | 0 |
 | **M5** — Project and release | `ongoing` | ongoing | `####......` 43% | 4 | 3 |
 
 ## Next up
@@ -107,6 +108,19 @@ Target `v0.2.0` · **now** · 5 open · 1 shipped · `##........` 17%
 | **AB-41** — QoE as one number, with its weights printed next to it | med | M | check,abr | open |
 | **AB-36** — A population, not a viewer | high | L | sim,trace,cli | shipped `0.2.0` |
 
+### M7 — A ladder you can defend
+
+Target `v0.6.0` · later · 6 open · 0 shipped · `..........` 0%
+
+| Item | Priority | Size | Labels | Status |
+|---|---|---|---|---|
+| **AB-46** — Candidate ladders, generated deterministically | high | M | check,output | open |
+| **AB-47** — Score a candidate over an audience, not a session | high | L | abr,check | open |
+| **AB-48** — The frontier, never “the best ladder” | high | M | output,check | open |
+| **AB-50** — Explain the recommendation in the units of the complaint | high | M | output,check | open |
+| **AB-51** — Say when the recommendation is overfitted | high | M | tests,check | open |
+| **AB-49** — The smallest ladder that still passes | med | M | check,cli | open |
+
 ### M5 — Project and release
 
 Target `ongoing` · ongoing · 4 open · 3 shipped · `####......` 43%
@@ -125,15 +139,15 @@ Target `ongoing` · ongoing · 4 open · 3 shipped · `####......` 43%
 
 | Label | Items | Open |
 |---|---|---|
-| `check` | 9 | 7 |
-| `output` | 7 | 6 |
-| `cli` | 7 | 5 |
+| `check` | 15 | 13 |
+| `output` | 10 | 9 |
+| `cli` | 8 | 6 |
+| `abr` | 8 | 5 |
 | `delivery` | 6 | 5 |
 | `sim` | 7 | 5 |
-| `abr` | 7 | 4 |
 | `integration` | 3 | 3 |
+| `tests` | 4 | 3 |
 | `release` | 4 | 2 |
-| `tests` | 3 | 2 |
 | `docs` | 3 | 1 |
 | `manifest` | 3 | 1 |
 | `project` | 1 | 1 |

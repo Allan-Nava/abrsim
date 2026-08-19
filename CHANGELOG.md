@@ -7,6 +7,29 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [0.2.1] — 2026-08-19
+
+### Added
+
+- **M7 — A ladder you can defend** (AB-46…AB-51), targeting `v0.6.0`. Everything
+  the tool does today *names* a defect; an encoding team then has to decide what
+  to do about it, and that decision — add a rung, drop one, move two — is where
+  the money is and where abrsim currently stops. `ladder-gap` says a rung is
+  missing and AB-26 proposes one; neither answers *what should this ladder be*.
+  So: candidate ladders generated deterministically from the one in hand (AB-46),
+  each scored over the viewer population rather than a session (AB-47), and the
+  result reported as a **Pareto front of viewer cost against delivery cost**
+  (AB-48) — never as a single winner, because what a gigabyte is worth is a
+  commercial question and this tool does not know the contract. Plus the smallest
+  ladder that still meets the budgets (AB-49), every recommendation explained in
+  the units of the complaint it removes (AB-50), and a hold-out check that says
+  when a winner only wins on the traces it was searched against (AB-51) — the
+  difference between a recommendation and a coincidence.
+- The milestone deliberately **waits on M6 and M3** rather than inventing its own
+  scoring: a search is exactly as trustworthy as the numbers it optimises, so it
+  consumes AB-41's QoE, AB-39's egress and AB-23's budgets instead of growing a
+  private definition of "better".
+
 ## [0.2.0] — 2026-08-19
 
 **An audience instead of a viewer** (AB-36) — the first item of M6, and the first
@@ -409,7 +432,8 @@ no judgement (AB-34) — both attempts at a severity fired on healthy reference
 streams, and a measurement with an honest "no opinion" is worth more than a
 severity that cries wolf.
 
-[Unreleased]: https://github.com/Allan-Nava/abrsim/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/Allan-Nava/abrsim/compare/v0.2.1...HEAD
+[0.2.1]: https://github.com/Allan-Nava/abrsim/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/Allan-Nava/abrsim/compare/v0.1.5...v0.2.0
 [0.1.5]: https://github.com/Allan-Nava/abrsim/compare/v0.1.4...v0.1.5
 [0.1.4]: https://github.com/Allan-Nava/abrsim/compare/v0.1.3...v0.1.4

@@ -271,7 +271,9 @@ be hand-edited. Items carry an invisible metadata comment:
 
 Milestones: **M1** the deterministic core (v0.1.0, shipped) · **M6** the audience
 (v0.2.0, in flight) · **M2** faithfulness (v0.3.0) · **M3** comparison and CI
-(v0.4.0) · **M4** integration (v0.5.0) · **M5** project and release (ongoing).
+(v0.4.0) · **M4** integration (v0.5.0) · **M7** a ladder you can defend (v0.6.0,
+and it depends on M6's scores and M3's budgets rather than inventing its own) ·
+**M5** project and release (ongoing).
 M6 went before M2 because the maintainer asked for it, and the *targets* moved
 rather than the milestone numbers: an `Mn` is an identity, not a position in a
 queue. Ids are stable forever: retire an item by
