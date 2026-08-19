@@ -278,6 +278,17 @@ be hand-edited. Items carry an invisible metadata comment:
 | `done <AB-n> --ver X.Y.Z [--note ...]` | tick it and stamp the release it shipped in |
 | `milestone <Mn> "<Title>" --target vX.Y.Z\|ongoing --phase p [--intro ...]` | create a milestone before the ongoing one |
 | `retarget <Mn> [--target ...] [--phase ...]` | move a milestone's target or phase |
+| `issues [--apply] [--milestones M6,M7] [--body AB-n] [--title AB-n]` | plan (or apply) the GitHub issue and milestone sync |
+
+**The issue sync runs one way only**: backlog → issues. An `AB-n` is the durable
+link, so editing a title or closing an issue on GitHub changes nothing; ticking the
+item with `done` does, and the next run closes the issue. Without `--apply` it only
+prints the plan. `.github/workflows/backlog-issues.yml` runs it on any push to
+`main` that touches `BACKLOG.md` or the tooling, and on demand via
+`workflow_dispatch` (with a `dry_run` input for a deliberate first look). The
+planner's decisions — create, close, reopen, retitle, skip — are covered by
+`scripts/backlog_issues_test.sh` against fixtures, because a planner that gets this
+wrong opens a duplicate issue for every item on every push, in public.
 
 **Use those four rather than editing `BACKLOG.md` by hand.** Each one lints the
 result before it replaces anything, regenerates `ROADMAP.md` on success, and leaves

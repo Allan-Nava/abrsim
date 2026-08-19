@@ -170,6 +170,7 @@ gates_cmd() {
 		backlog-staleness ci  './scripts/backlog.sh check' \
 		backlog-tooling   ci  'sh ./scripts/backlog_test.sh' \
 		release-tooling   ci  'sh ./scripts/release_test.sh' \
+		issues-tooling    ci  'sh ./scripts/backlog_issues_test.sh' \
 		docs              ci  './scripts/docs.sh check' \
 		goreleaser-config ci  'args: check' \
 		gofmt             ci  'gofmt -l ./cmd ./internal' \

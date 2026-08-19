@@ -57,6 +57,7 @@ jobs:
         run: |
           sh ./scripts/backlog_test.sh
           sh ./scripts/release_test.sh
+          sh ./scripts/backlog_issues_test.sh
 
       # The Pages site and the README name the checks, traces, algorithms and
       # flags the binary has. Renaming one and forgetting the page is the drift

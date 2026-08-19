@@ -7,6 +7,45 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [0.3.3] — 2026-08-19
+
+`backlog.sh issues` has existed since the backlog did, and nothing ever ran it —
+so the GitHub issues and milestones were empty while `BACKLOG.md` carried 52 items.
+
+### Added
+
+- **`.github/workflows/backlog-issues.yml`**: the sync, automated. It runs on any
+  push to `main` that touches `BACKLOG.md` or the tooling — nothing else can change
+  the plan — and on demand through `workflow_dispatch`, which takes a `milestones`
+  filter and a `dry_run` toggle so a first run can be looked at before it happens.
+  It prints the plan **before** applying it, so the log says what it was about to do
+  even when a later step fails, and puts the counts in the run summary. It uses the
+  workflow's own `GITHUB_TOKEN` with `issues: write`; no PAT is involved.
+  `concurrency: backlog-issues` is not decoration: two runs racing both see "no
+  issue for AB-n" and open it twice.
+- **`scripts/backlog_issues_test.sh`** (21 checks) — the planner decides what
+  appears on a public repository, so its decisions are now asserted against
+  fixtures, with no network call and nothing created: an open item with no issue is
+  created, one that has an issue is left alone, one whose issue was closed by hand
+  is reopened, a shipped item's open issue is closed, a shipped item that never had
+  an issue is skipped rather than opened-and-closed, a drifted title is corrected,
+  a settled repository is a no-op in all four verbs, `--milestones` narrows the
+  plan, and a title containing a pipe survives — because `AB-6` in the fixture has
+  one, and splitting on pipes is how the sibling repository truncated an issue
+  title at the first `|`.
+- The new test joins `release.sh gates` and `ci.yml` in the same commit, which is
+  what the drift comparison added in 0.3.1 is for.
+
+### Known limitations
+
+The sync has **not run yet**: the plan is 33 issues to create, 0 to close, 0 to
+reopen, and applying it from this machine was refused as an outward-facing action.
+It will run by itself on the first push to `main` that includes this commit — the
+workflow's path filter covers both `BACKLOG.md` and `scripts/backlog.sh` — or
+deliberately from the Actions tab with `dry_run` first. Shipped items that never had
+an issue are skipped rather than opened and closed, so the first run creates issues
+only for the 33 items that are actually open.
+
 ## [0.3.2] — 2026-08-19
 
 ### Fixed
@@ -580,7 +619,8 @@ no judgement (AB-34) — both attempts at a severity fired on healthy reference
 streams, and a measurement with an honest "no opinion" is worth more than a
 severity that cries wolf.
 
-[Unreleased]: https://github.com/Allan-Nava/abrsim/compare/v0.3.2...HEAD
+[Unreleased]: https://github.com/Allan-Nava/abrsim/compare/v0.3.3...HEAD
+[0.3.3]: https://github.com/Allan-Nava/abrsim/compare/v0.3.2...v0.3.3
 [0.3.2]: https://github.com/Allan-Nava/abrsim/compare/v0.3.1...v0.3.2
 [0.3.1]: https://github.com/Allan-Nava/abrsim/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/Allan-Nava/abrsim/compare/v0.2.2...v0.3.0
