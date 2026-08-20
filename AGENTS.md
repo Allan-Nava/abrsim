@@ -220,6 +220,17 @@ it cannot consume a minor a milestone has its name on.
   (`go install golang.org/dl/go1.X.Y@latest && go1.X.Y download`, then run
   `govulncheck` with it on `PATH`) rather than pushing and hoping. It is never a
   false positive for a tool that takes credentials in `--header` and speaks TLS.
+- **`dockers_v2` stages each platform's binary under `<os>/<arch>/`, not in the
+  context root.** `COPY abrsim /abrsim` fails with `"/abrsim": not found`; the
+  Dockerfile needs `ARG TARGETPLATFORM` and `COPY ${TARGETPLATFORM}/abrsim`. The
+  sibling repository had already paid for this line and written it down, and this
+  one paid for it again by not reading it first — which is the argument for reading
+  segcheck's scars before repeating them.
+- **The image is `distroless/static`, never `scratch`.** abrsim fetches manifests
+  over HTTPS, and `scratch` carries no CA bundle: every run against a real CDN would
+  die on an unverifiable certificate, which is a limit of the *image* reported as a
+  defect in the *stream* — the one thing this tool refuses to do. distroless also
+  keeps `Dockerfile.release` free of any `RUN`, so arm64 needs no emulation.
 - **Homebrew stages the binary with `com.apple.quarantine`, and ours is only
   ad-hoc signed** — that is the Go linker on arm64, not a Developer ID signature.
   Gatekeeper then kills the first run with SIGKILL, exit 137, **and no output at
@@ -340,10 +351,12 @@ marking it done, never by deleting it and reusing the number.
 
 ## Pointers
 
-- `.goreleaser.yaml` + `.github/workflows/release.yml` — the release: six
-  archives, checksums and a Homebrew **cask** (a formula describes something built
-  from source; this is a prebuilt binary), published on a pushed `v*` tag after the
-  smoke test passes. Two things live outside the repository and cannot be fixed
+- `.goreleaser.yaml` + `Dockerfile.release` + `.github/workflows/release.yml` — the
+  release: six archives, checksums, a Homebrew **cask** (a formula describes
+  something built from source; this is a prebuilt binary) and one multi-arch
+  container image, published on a pushed `v*` tag after the smoke test and
+  `release.sh check` both pass, and verified afterwards by pulling the published
+  image and running a reference stream through it. Two things live outside the repository and cannot be fixed
   from inside it: the `HOMEBREW_TAP_TOKEN` secret (fine-grained PAT on
   `Allan-Nava/homebrew-tap`, Contents: read and write) and the Pages source
   setting. The cask is macOS-only on purpose — `go install` and the archives cover

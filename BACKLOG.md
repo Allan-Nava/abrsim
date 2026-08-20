@@ -208,8 +208,18 @@ answer *did this change make it better*.
   proposal gets built. <!-- ab: prio=med size=L labels=check,integration -->
 - [ ] **AB-27 — GitHub Action**: run a sweep against the budgets on every encoder
   configuration change. <!-- ab: prio=med size=S labels=integration,delivery -->
-- [ ] **AB-28 — Container image**: a static image for pipelines that will not
-  install a binary. <!-- ab: prio=low size=S labels=delivery -->
+- [x] **AB-28 — Container image**: a static image for pipelines that will not
+  Shipped as Dockerfile.release plus a dockers_v2 stanza: one multi-arch image
+  (linux/amd64 and linux/arm64, about 8 MB) built from the same cross-compiled
+  binaries as that tag's archives, so an image and its archive can never be
+  different builds. distroless/static:nonroot rather than scratch, because
+  abrsim fetches manifests over HTTPS and scratch has no CA certificates —
+  every run against a real CDN would fail on an unverifiable certificate, which
+  is a limit of the image reported as a defect in the stream. No RUN step, so
+  arm64 needs no emulation. A verify-image job pulls the published image after
+  every release and runs a reference stream through it, and docs.sh only permits
+  a docker run line in the documentation while that stanza exists.
+  install a binary. <!-- ab: prio=low size=S labels=delivery ver=0.4.1 -->
 
 ## M6 — The audience, not the session <!-- ms: target=v0.4.0 phase=shipped -->
 

@@ -6,7 +6,7 @@
 > of truth for planned work. Regenerate it with `scripts/backlog.sh roadmap`
 > after editing the backlog — CI fails when the two disagree.
 
-**52 items · 23 shipped · 29 open · 7 milestones.**
+**52 items · 24 shipped · 28 open · 7 milestones.**
 
 ## At a glance
 
@@ -15,7 +15,7 @@
 | **M1** — The deterministic core | `v0.1.0` | shipped | `##########` 100% | 0 | 13 |
 | **M2** — Faithfulness | `v0.5.0` | **now** | `..........` 0% | 11 | 0 |
 | **M3** — Comparison and CI | `v0.6.0` | later | `..........` 0% | 4 | 0 |
-| **M4** — Integration | `v0.7.0` | later | `..........` 0% | 4 | 0 |
+| **M4** — Integration | `v0.7.0` | later | `###.......` 25% | 3 | 1 |
 | **M6** — The audience, not the session | `v0.4.0` | shipped | `##########` 100% | 0 | 6 |
 | **M7** — A ladder you can defend | `v0.8.0` | later | `..........` 0% | 6 | 0 |
 | **M5** — Project and release | `ongoing` | ongoing | `#####.....` 50% | 4 | 4 |
@@ -86,14 +86,14 @@ Target `v0.6.0` · later · 4 open · 0 shipped · `..........` 0%
 
 ### M4 — Integration
 
-Target `v0.7.0` · later · 4 open · 0 shipped · `..........` 0%
+Target `v0.7.0` · later · 3 open · 1 shipped · `###.......` 25%
 
 | Item | Priority | Size | Labels | Status |
 |---|---|---|---|---|
 | **AB-25** — Read sizes from a segcheck report | high | M | integration | open |
 | **AB-26** — Propose the missing rung | med | L | check,integration | open |
 | **AB-27** — GitHub Action | med | S | integration,delivery | open |
-| **AB-28** — Container image | low | S | delivery | open |
+| **AB-28** — Container image | low | S | delivery | shipped `0.4.1` |
 
 ### M6 — The audience, not the session
 
@@ -144,8 +144,8 @@ Target `ongoing` · ongoing · 4 open · 4 shipped · `#####.....` 50%
 | `output` | 10 | 7 |
 | `cli` | 8 | 5 |
 | `abr` | 8 | 4 |
-| `delivery` | 6 | 4 |
 | `sim` | 7 | 4 |
+| `delivery` | 6 | 3 |
 | `integration` | 3 | 3 |
 | `tests` | 4 | 3 |
 | `release` | 4 | 2 |

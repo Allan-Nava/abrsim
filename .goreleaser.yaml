@@ -42,6 +42,35 @@ archives:
 checksum:
   name_template: "checksums.txt"
 
+# One multi-arch image, so `docker run ghcr.io/allan-nava/abrsim:X.Y.Z` resolves on
+# amd64 and arm64 alike. The binaries are the ones goreleaser already built for the
+# archives — Dockerfile.release only packages them — so an image and its archive can
+# never be different builds of the same tag.
+#
+# dockers_v2 rather than the deprecated dockers/docker_manifests pair: `goreleaser
+# check` fails on those, and CI runs that check on every commit precisely so a
+# deprecation is not discovered on the first pushed tag.
+dockers_v2:
+  - id: abrsim
+    images:
+      - "ghcr.io/allan-nava/abrsim"
+    tags:
+      - "{{ .Version }}"
+      # :latest stays where it is when the tag is a prerelease.
+      - '{{ if not .Prerelease }}latest{{ end }}'
+    platforms:
+      - linux/amd64
+      - linux/arm64
+    dockerfile: Dockerfile.release
+    labels:
+      org.opencontainers.image.title: abrsim
+      org.opencontainers.image.description: Simulate what an ABR player does with your HLS ladder on a real network, and report what it cost the viewer
+      org.opencontainers.image.version: "{{ .Version }}"
+      org.opencontainers.image.revision: "{{ .FullCommit }}"
+      org.opencontainers.image.created: "{{ .Date }}"
+      org.opencontainers.image.source: https://github.com/Allan-Nava/abrsim
+      org.opencontainers.image.licenses: PolyForm-Noncommercial-1.0.0
+
 # The tap is Allan-Nava/homebrew-tap, shared with segcheck. HOMEBREW_TAP_TOKEN is
 # a fine-grained PAT scoped to that repository with Contents: read and write — the
 # workflow's own GITHUB_TOKEN is scoped to this repository and cannot write to

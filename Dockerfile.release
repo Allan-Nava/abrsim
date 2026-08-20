@@ -1,0 +1,31 @@
+# The published image. It only *copies* a binary goreleaser has already
+# cross-compiled — there is deliberately no RUN step in here, which is why arm64
+# needs no emulation to build and why the image and its archive can never be
+# different builds of the same version.
+#
+# distroless/static rather than scratch: abrsim fetches manifests over HTTPS, and
+# scratch has no CA certificates, so every run against a real CDN would fail with
+# an unverifiable certificate — a limit of the image reported as a defect in the
+# stream, which is the one thing this project refuses to do. distroless is also
+# multi-arch and ships no shell, which suits a single-binary entrypoint.
+FROM gcr.io/distroless/static:nonroot
+
+# The OCI labels goreleaser cannot set from the outside.
+LABEL org.opencontainers.image.title="abrsim" \
+      org.opencontainers.image.description="Simulate what an ABR player does with your HLS ladder on a real network, and report what it cost the viewer" \
+      org.opencontainers.image.source="https://github.com/Allan-Nava/abrsim" \
+      org.opencontainers.image.licenses="PolyForm-Noncommercial-1.0.0"
+
+# goreleaser stages each platform's binary under <os>/<arch>/ in the build context
+# and builds one platform at a time, so TARGETPLATFORM is what selects the right
+# one. Copying a bare `abrsim` from the context root fails with "/abrsim: not
+# found" — the binary is never there. The sibling repository paid for this line
+# once already; this one paid for it again by not reading it.
+ARG TARGETPLATFORM
+COPY ${TARGETPLATFORM}/abrsim /abrsim
+
+# No shell, so no shell form: the entrypoint is the binary and the arguments are
+# whatever `docker run` is given. `docker run … abrsim:latest run <url> --trace x`
+# reads exactly like the command it replaces.
+ENTRYPOINT ["/abrsim"]
+CMD ["--help"]

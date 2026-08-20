@@ -7,6 +7,57 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [0.4.1] — 2026-08-20
+
+The container image (AB-28), pulled forward out of M4 because it is a delivery item
+the release pipeline was already shaped for — and because `docs.sh` forbids
+documenting a `docker run` that nothing builds, so the gap was load-bearing.
+
+### Added
+
+- **One multi-arch image** — `ghcr.io/allan-nava/abrsim:X.Y.Z` and `:latest`,
+  linux/amd64 and linux/arm64, about **8 MB**. `Dockerfile.release` copies the
+  binaries goreleaser already cross-compiled for that tag's archives, so **an image
+  and its archive can never be different builds**, and it contains no `RUN` at all,
+  so arm64 needs no emulation to assemble.
+- **`gcr.io/distroless/static:nonroot`, deliberately not `scratch`.** abrsim fetches
+  manifests over HTTPS and `scratch` ships no CA bundle: every run against a real
+  CDN would die on an unverifiable certificate — a limit of the *image* reported as
+  a defect in the *stream*, which is the one thing this tool refuses to do.
+  Distroless also means no shell and uid 65532.
+- **`verify-image`**: after publishing, CI pulls the image it just pushed and runs a
+  reference stream through it (`internal/analyze/docker_test.go`, build tag
+  `docker`), asserting the JSON parses, the timeline is not empty, all seven checks
+  speak and none of them is an `ERROR` — a TLS failure inside a container looks
+  exactly like an ERROR finding, which is how a `scratch` base would have shipped
+  broken and looked fine. An image nobody ran is an archive with a registry in front
+  of it.
+- The `docker run` line in the README and on the site, which `docs.sh` has been
+  refusing to allow since 0.1.3 and now permits, because there is finally an image
+  behind it. Verified by breaking it back: with the `dockers_v2` stanza removed, the
+  gate fails both documents.
+
+### Fixed
+
+- **`COPY abrsim /abrsim` cannot work under `dockers_v2`**: it stages each
+  platform's binary under `<os>/<arch>/`, so the build failed with
+  `"/abrsim": not found` until the Dockerfile took `ARG TARGETPLATFORM`. The sibling
+  repository had already paid for this and written it down; this one paid again by
+  not reading it first. Both the fix and that lesson are now in `AGENTS.md`.
+
+### Verified before the tag, not after
+
+`goreleaser release --snapshot` built both architectures locally, and the image ran
+Apple's `bipbop` reference stream over the `train` trace to a clean report — TLS
+verified inside the container, seven checks, no ERROR.
+
+### Note on the Homebrew cask
+
+It is live: `brew install --cask allan-nava/tap/abrsim` installs **0.4.0** from
+`Allan-Nava/homebrew-tap`. The 401 recorded in 0.1.4's notes was the missing
+`HOMEBREW_TAP_TOKEN`; with the secret in place the release publishes the cask, and
+the last four have.
+
 ## [0.4.0] — 2026-08-19
 
 **M6 is complete.** The tool no longer answers "what did this ladder cost *a*
@@ -687,7 +738,8 @@ no judgement (AB-34) — both attempts at a severity fired on healthy reference
 streams, and a measurement with an honest "no opinion" is worth more than a
 severity that cries wolf.
 
-[Unreleased]: https://github.com/Allan-Nava/abrsim/compare/v0.4.0...HEAD
+[Unreleased]: https://github.com/Allan-Nava/abrsim/compare/v0.4.1...HEAD
+[0.4.1]: https://github.com/Allan-Nava/abrsim/compare/v0.4.0...v0.4.1
 [0.4.0]: https://github.com/Allan-Nava/abrsim/compare/v0.3.3...v0.4.0
 [0.3.3]: https://github.com/Allan-Nava/abrsim/compare/v0.3.2...v0.3.3
 [0.3.2]: https://github.com/Allan-Nava/abrsim/compare/v0.3.1...v0.3.2

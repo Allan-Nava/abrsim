@@ -71,6 +71,10 @@ brew install --cask allan-nava/tap/abrsim
 # Go — every platform, including Linux Homebrew users
 go install github.com/Allan-Nava/abrsim/cmd/abrsim@latest
 
+# Docker — linux/amd64 and linux/arm64, 8 MB, distroless and non-root
+docker run --rm ghcr.io/allan-nava/abrsim:latest \
+  run https://cdn.example/master.m3u8 --trace mobile-4g
+
 # Or a prebuilt archive for linux/darwin/windows on amd64/arm64
 # https://github.com/Allan-Nava/abrsim/releases
 ```
@@ -81,6 +85,15 @@ enforces it. No ffmpeg, no browser, no network during the simulation itself.
 The cask is macOS-only on purpose: `go install` and the archives already cover
 Linux and Windows, and a second packaging path exists to become the one that goes
 stale.
+
+The image is `gcr.io/distroless/static:nonroot` with the binary copied in — no
+shell, no package manager, runs as 65532, and about 8 MB. It is built from the same
+cross-compiled binaries as the archives of that tag, so an image and its archive can
+never be different builds. `distroless` rather than `scratch` because abrsim fetches
+manifests over HTTPS and `scratch` has no CA certificates: every run against a real
+CDN would fail on an unverifiable certificate, which is a limit of the image
+reported as a defect in the stream — the one thing this tool refuses to do. After
+every release, CI pulls the published image and runs a reference stream through it.
 
 ## Checks
 

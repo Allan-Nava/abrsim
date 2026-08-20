@@ -123,14 +123,17 @@ header.top nav a:hover { color: var(--accent); }
 }
 .tabbar label:hover { color: var(--fg); }
 .panel { display: none; }
-#t-brew:checked ~ .tabbar label[for="t-brew"],
-#t-go:checked   ~ .tabbar label[for="t-go"],
-#t-arch:checked ~ .tabbar label[for="t-arch"] { color: var(--bg); background: var(--fg); border-color: var(--fg); }
-#t-brew:checked ~ .panels .p-brew,
-#t-go:checked   ~ .panels .p-go,
-#t-arch:checked ~ .panels .p-arch { display: block; }
+#t-brew:checked   ~ .tabbar label[for="t-brew"],
+#t-go:checked     ~ .tabbar label[for="t-go"],
+#t-docker:checked ~ .tabbar label[for="t-docker"],
+#t-arch:checked   ~ .tabbar label[for="t-arch"] { color: var(--bg); background: var(--fg); border-color: var(--fg); }
+#t-brew:checked   ~ .panels .p-brew,
+#t-go:checked     ~ .panels .p-go,
+#t-docker:checked ~ .panels .p-docker,
+#t-arch:checked   ~ .panels .p-arch { display: block; }
 .tabs input:focus-visible ~ .tabbar label[for="t-brew"],
 .tabs input:focus-visible ~ .tabbar label[for="t-go"],
+.tabs input:focus-visible ~ .tabbar label[for="t-docker"],
 .tabs input:focus-visible ~ .tabbar label[for="t-arch"] { outline: 2px solid var(--accent); outline-offset: 2px; }
 .cmd {
   display: block; background: var(--bg-soft); border: 1px solid var(--line);
@@ -269,9 +272,11 @@ footer p { max-width: 74ch; }
       <input type="radio" name="install" id="t-brew" checked>
       <input type="radio" name="install" id="t-go">
       <input type="radio" name="install" id="t-arch">
+      <input type="radio" name="install" id="t-docker">
       <div class="tabbar">
         <label for="t-brew">macOS</label>
         <label for="t-go">Go, any platform</label>
+        <label for="t-docker">Docker</label>
         <label for="t-arch">Prebuilt archive</label>
       </div>
       <div class="panels">
@@ -282,6 +287,16 @@ footer p { max-width: 74ch; }
         <div class="panel p-go">
           <code class="cmd"><span class="p">$ </span>go install github.com/Allan-Nava/abrsim/cmd/abrsim@latest</code>
           <p class="note-sm">Linux, macOS and Windows. No cgo, no ffmpeg, nothing to configure.</p>
+        </div>
+        <div class="panel p-docker">
+          <code class="cmd"><span class="p">$ </span>docker run --rm ghcr.io/allan-nava/abrsim:latest run https://cdn.example/master.m3u8 --trace mobile-4g</code>
+          <p class="note-sm">
+            linux/amd64 and linux/arm64, about 8 MB: distroless, no shell, runs as
+            65532. Built from the same cross-compiled binaries as that tag's
+            archives, so an image and its archive can never be different builds —
+            and CI pulls the published image after every release and runs a
+            reference stream through it.
+          </p>
         </div>
         <div class="panel p-arch">
           <code class="cmd"><span class="p">$ </span>curl -LO https://github.com/Allan-Nava/abrsim/releases/latest/download/abrsim_linux_amd64.tar.gz</code>
